@@ -5,7 +5,7 @@
 
 window.APP_CONFIG = {
   apiKey: "sk_tr_wnAMbA3i2AKQuEVEtlSkg2kDCRuO8dhbtytCgxgeHJw",
-  baseUrl: "https://tokenrhythm.studio/v1",
+  baseUrl: "https://tokenrhythm.studio/v1/models",
   proxyUrl: null,
   modelFast: "deepseek-v4-flash",
   modelSlow: "deepseek-v4-pro",
