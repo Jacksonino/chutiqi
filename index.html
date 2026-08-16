@@ -159,7 +159,7 @@
   <header>
     <div class="head-row">
       <div>
-        <h1>📐 小许同学专用</h1>
+        <h1>小许同学专用</h1>
         <p>出卷 · 仿例题 · 按知识点，都能出题</p>
       </div>
       <button class="key-btn" id="keyBtn">🔑 密钥</button>
@@ -292,7 +292,7 @@
     // ---------- 读取配置 ----------
     var cfg = (window.APP_CONFIG || {});
     var LS_KEY = "chutiqi_api_key";
-    var API_KEY = readStoredKey() || (cfg.apiKey || "");
+    var API_KEY = (cfg.apiKey || "") || readStoredKey();
     var BASE_URL = cfg.baseUrl || "https://api.siliconflow.cn/v1/chat/completions";
     // 有 proxyUrl 就走服务端代理（部署版：密钥在服务端，且无跨域问题）；
     // 否则本地用 apiKey 直连硅基流动；两者都没有则回退到同源 /api/chat。
