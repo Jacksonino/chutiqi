@@ -19,7 +19,7 @@ window.APP_CONFIG = {
   //   "deepseek-ai/DeepSeek-R1"     -> 推理更强，数学更稳，但慢一些
   //   "Qwen/Qwen3-235B-A22B"        -> 数学好，速度适中
   // 如果报“模型不存在”，去 https://cloud.siliconflow.cn/models 挑一个可用的填进来。
-  model: "deepseek-ai/DeepSeek-V3",
+  model: "deepseek-ai/DeepSeek-R1",
 
   // 出题“发散程度”：0.3 更稳更规范，0.8 更多样。默认 0.6 即可。
   temperature: 0.6,
