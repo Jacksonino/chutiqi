@@ -153,7 +153,7 @@
     <div class="head-row">
       <div>
         <h1>📐 智能数学出题器</h1>
-        <p>给例题 · 给知识点 · 直接提要求，都能出题</p>
+        <p>出卷 · 仿例题 · 按知识点，都能出题</p>
       </div>
       <button class="key-btn" id="keyBtn">🔑 密钥</button>
     </div>
@@ -162,9 +162,9 @@
   <main>
     <div class="card">
       <div class="tabs" id="tabs">
-        <div class="tab active" data-mode="mimic">📋 仿例题</div>
+        <div class="tab active" data-mode="exam">📝 出卷</div>
+        <div class="tab" data-mode="mimic">📋 仿例题</div>
         <div class="tab" data-mode="knowledge">📚 按知识点</div>
-        <div class="tab" data-mode="free">✍️ 直接要求</div>
       </div>
       <div class="hint" id="hint"></div>
     </div>
@@ -257,6 +257,18 @@
       </div>
     </div>
 
+    <!-- PDF 命名弹层 -->
+    <div class="modal" id="nameModal">
+      <div class="modal-box">
+        <div class="modal-head">
+          <span>📄 给 PDF 起个名字</span>
+          <button class="mini-btn" id="nameCancel">取消</button>
+        </div>
+        <input type="text" id="pdfName" value="出题" style="width:100%;padding:11px;font-size:15px;border:1.5px solid #e5e7eb;border-radius:10px;outline:none;" />
+        <button class="primary" id="nameOk" style="margin-top:10px;">生成 PDF</button>
+      </div>
+    </div>
+
     <footer>内部教学工具 · 题目由 AI 生成，建议老师过目后再使用</footer>
   </main>
 
@@ -287,16 +299,16 @@
     function $(id) { return document.getElementById(id); }
 
     // ---------- 三种模式 ----------
-    var currentMode = "mimic";
+    var currentMode = "exam";
     var HINTS = {
+      exam: "输入出卷范围，例如：初一上册第二~三单元、九年级期中、高一第一学期期末……我会按该范围的教材目录自动组织知识点，出一张完整试卷（选择+填空+解答，含分值）。",
       mimic: "粘贴一道例题（可含题目和答案）。我会先分析它的知识点和题型，再给你出：①同类型题 ②举一反三题 ③关联知识点题。",
-      knowledge: "输入一个知识点，例如：一元一次方程、二次函数、勾股定理、因式分解、三角函数……再在上面选好年级，我会按该知识点的常见题型出题。",
-      free: "直接说要求，例如：给我 5 道初二因式分解题，中等难度，要两道应用题。"
+      knowledge: "输入一个知识点，例如：一元一次方程、二次函数、勾股定理、因式分解、三角函数……再在上面选好年级，我会按该知识点的常见题型出题。"
     };
     var PLACEHOLDERS = {
+      exam: "示例：\n出一张初一上册第二~三单元的单元测试卷",
       mimic: "示例：\n解方程 2x + 3 = 11，求 x 的值。",
-      knowledge: "示例：\n一元一次方程",
-      free: "示例：\n给我 5 道初三二次函数题，中等偏难，其中 2 道应用题。"
+      knowledge: "示例：\n一元一次方程"
     };
 
     // ---------- 系统提示词（核心） ----------
@@ -305,6 +317,7 @@
       "",
       "【硬性规则，必须遵守】",
       "1. 所有数学公式、分式、根号、指数、几何记号，一律用 LaTeX 书写：行内用 $...$，独立成行用 $$...$$。例如 $\\frac{1}{2}$、$x^2+2x+1=0$、$\\sqrt{2}$。禁止用纯文本堆砌公式。",
+      "1b. 只使用最基础的 LaTeX 命令（如 \\frac、乘方 ^、\\sqrt、\\times、\\div、\\pm、希腊字母、=<>≤≥≠ 等）；禁止使用复杂环境（\\begin{aligned}、矩阵、\\begin{cases} 等），以免在网页里显示成乱码或源码。",
       "2. 题目条件完整、无歧义、数据合理；应用题数值符合实际（人数、个数应为整数等）。",
       "3. 严格遵循用户指定的年级/学段、题目数量、题型和难度（难度分级见下方标准）；未指定难度时默认中等。",
       "4. 每道题出完后在心里验算一遍，确保可解、答案正确。",
@@ -340,8 +353,16 @@
       "2. 每种题型各出一道题，从易到难排列，尽量覆盖填空、选择、计算、解答/应用等常见形式。",
       "每题用 ### 编号，并标注【题型】【考点】。",
       "",
-      "模式C【直接出题模式】：用户直接提要求。你要：",
-      "严格按用户的要求（数量、题型、难度、范围）出题；用户没说数量时默认 5 道，从易到难排列。每题用 ### 编号。",
+      "模式C【出卷模式】：用户给一个出卷范围（如「初一上册第二~三单元」「九年级期中」「高一期末」）。你要：",
+      "1. 先判断教材版本（用户没说就默认人教版），按该版本教材目录，简要列出该范围内涉及的知识点。",
+      "2. 模仿常见单元卷/期中卷/期末卷，出一张结构完整的试卷，用 ## 分大题、用 ### 给每道题编号：",
+      "   - 试卷标题（如「七年级数学上册 第二~三单元测试卷」）+ 说明行（满分、考试时间）。",
+      "   - 一、选择题（约 8~10 题，每题 3 分，含 A/B/C/D 四个选项）。",
+      "   - 二、填空题（约 6~8 题，每题 3 分）。",
+      "   - 三、解答题（约 5~6 题，每题 6~10 分不等，要写出解题步骤）。",
+      "3. 满分合计 100 分或 120 分（在说明里写清，并保证各题分值加起来等于总分）。",
+      "4. 难度分布：基础约 60%、中等约 25%、较难约 15%；覆盖该范围内所有主要知识点，不遗漏。",
+      "5. 每道题标注分值；若用户要求附答案，试卷末尾单独给一份【参考答案与评分标准】。",
       "",
       "【关于答案】",
       "- 如果用户要求附答案，在每道题后给出【答案与解析】，解析写出关键步骤。",
@@ -360,14 +381,15 @@
       var diffStr = (difficulty && difficulty !== "不限") ? "难度：" + difficulty : "";
       var ansStr = withAnswer ? "请为每道题附上【答案与解析】，解析写出关键步骤。" : "只出题目，不要给出任何答案或提示。";
 
+      if (currentMode === "exam") {
+        var ansExam = withAnswer ? "请在试卷末尾单独附一份【参考答案与评分标准】。" : "只出试卷题目，不要给出任何答案或解析。";
+        return ["请按照【模式C 出卷模式】出一张试卷。", "", "【出卷范围】", input, "", "【要求】", gradeStr, diffStr, ansExam].filter(Boolean).join("\n");
+      }
       if (currentMode === "mimic") {
         return ["请按照【模式A 仿例题模式】出题。", "", "【例题】", input, "", "【要求】", gradeStr, "同类型题、举一反三题、关联知识点题各出 " + count + " 道。", "整体难度以例题为准，举一反三题比例题略难一档。", ansStr].filter(Boolean).join("\n");
       }
-      if (currentMode === "knowledge") {
-        return ["请按照【模式B 知识点出题模式】出题。", "", "【知识点】", input, "", "【要求】", gradeStr, diffStr, "共出 " + count + " 道题，覆盖该知识点的常见题型，从易到难排列。", ansStr].filter(Boolean).join("\n");
-      }
-      // free
-      return ["请按照【模式C 直接出题模式】出题。", "", "【用户要求】", input, "", "【补充要求】", gradeStr, diffStr, ansStr].filter(Boolean).join("\n");
+      // knowledge
+      return ["请按照【模式B 知识点出题模式】出题。", "", "【知识点】", input, "", "【要求】", gradeStr, diffStr, "共出 " + count + " 道题，覆盖该知识点的常见题型，从易到难排列。", ansStr].filter(Boolean).join("\n");
     }
 
     // ---------- 工具函数 ----------
@@ -396,7 +418,8 @@
               { left: "\\(", right: "\\)", display: false },
               { left: "\\[", right: "\\]", display: true }
             ],
-            throwOnError: false
+            throwOnError: false,
+            strict: false
           });
         } catch (e) {}
       }
@@ -653,15 +676,41 @@
       });
     }
 
-    async function exportPdf() {
+    function openNameModal() {
+      if (!$("outBody").textContent.trim()) { setStatus("还没有可导出的题目。", true); return; }
+      $("pdfName").value = "出题";
+      $("nameModal").classList.add("show");
+      setTimeout(function () { $("pdfName").focus(); $("pdfName").select(); }, 50);
+    }
+    function closeNameModal() { $("nameModal").classList.remove("show"); }
+
+    async function doExportPdf(name) {
       var out = $("outBody");
-      if (!out || !out.textContent.trim()) { setStatus("还没有可导出的题目。", true); return; }
       if (!window.html2canvas) { setStatus("图片组件未加载（网络问题），请刷新重试。", true); return; }
       if (!window.jspdf || !window.jspdf.jsPDF) { setStatus("PDF 组件未加载（网络问题），请刷新重试。", true); return; }
 
       setStatus("正在生成 PDF…", false);
       var btn = $("exportPdf");
       btn.disabled = true;
+
+      // 用固定桌面宽度 800px 的副本渲染，避免手机上按窄屏渲染成又窄又长的 PDF
+      var holder = document.createElement("div");
+      holder.style.cssText = "position:absolute;left:-9999px;top:0;width:800px;background:#fff;";
+      var clone = out.cloneNode(true);
+      clone.style.border = "none";
+      clone.style.background = "#fff";
+      clone.style.padding = "0";
+      holder.appendChild(clone);
+      document.body.appendChild(holder);
+
+      // 克隆的 canvas 是空白的，把原图内容复制过去
+      var origCanvases = out.querySelectorAll("canvas");
+      var cloneCanvases = clone.querySelectorAll("canvas");
+      for (var c = 0; c < cloneCanvases.length; c++) {
+        if (origCanvases[c]) {
+          try { cloneCanvases[c].getContext("2d").drawImage(origCanvases[c], 0, 0); } catch (e) {}
+        }
+      }
 
       try {
         var jsPDF = window.jspdf.jsPDF;
@@ -672,7 +721,7 @@
         var y = margin;
 
         // 按「段落/公式/图」逐块渲染并分页，避免把一行字切到两页
-        var blocks = out.querySelectorAll("h1, h2, h3, h4, p, ul, ol, .graph-wrap, pre, blockquote");
+        var blocks = clone.querySelectorAll("h1, h2, h3, h4, p, ul, ol, .graph-wrap, pre, blockquote");
         for (var i = 0; i < blocks.length; i++) {
           var el = blocks[i];
           if (!el || !el.textContent || !el.textContent.trim()) continue;
@@ -682,22 +731,35 @@
             pdf.addPage();
             y = margin;
           }
-          if (imgHmm > contentH) { imgHmm = contentH; }  // 极端长块限高（几乎不会触发）
+          if (imgHmm > contentH) { imgHmm = contentH; }
           pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", margin, y, contentW, imgHmm);
           y += imgHmm + 1.5;
         }
 
-        pdf.save("出题.pdf");
+        pdf.save((name || "出题") + ".pdf");
         setStatus("PDF 已生成并开始下载 ✓", false);
       } catch (e) {
         setStatus("生成 PDF 失败：" + (e && e.message ? e.message : e), true);
       } finally {
+        document.body.removeChild(holder);
         btn.disabled = false;
       }
     }
 
     $("exportImg").addEventListener("click", exportImage);
-    $("exportPdf").addEventListener("click", exportPdf);
+    $("exportPdf").addEventListener("click", openNameModal);
+    $("nameOk").addEventListener("click", function () {
+      var name = ($("pdfName").value || "").trim() || "出题";
+      closeNameModal();
+      doExportPdf(name);
+    });
+    $("nameCancel").addEventListener("click", closeNameModal);
+    $("nameModal").addEventListener("click", function (e) { if (e.target === $("nameModal")) { closeNameModal(); } });
+    $("pdfName").addEventListener("keydown", function (e) { if (e.key === "Enter") {
+      var name = ($("pdfName").value || "").trim() || "出题";
+      closeNameModal();
+      doExportPdf(name);
+    } });
     $("closeModal").addEventListener("click", function () { $("imgModal").classList.remove("show"); });
     $("imgModal").addEventListener("click", function (e) { if (e.target === $("imgModal")) { $("imgModal").classList.remove("show"); } });
 
@@ -738,7 +800,7 @@
     }
 
     // 初始化
-    switchMode("mimic");
+    switchMode("exam");
     if (!API_KEY && !cfg.proxyUrl) { openKeyModal("首次使用请粘贴你的硅基流动密钥（只保存在本机浏览器）。"); }
   })();
   </script>
