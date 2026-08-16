@@ -3,7 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>小许同学专用</title>
+  <title>智能数学出题器</title>
+
+  <!-- PWA：可添加到主屏幕 / 打包成 App -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#2f6fed" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="出题器" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
 
   <!-- KaTeX 数学公式渲染 + Markdown 排版（从公共 CDN 加载） -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
@@ -143,7 +152,7 @@
   <header>
     <div class="head-row">
       <div>
-        <h1>📐 小许同学专用</h1>
+        <h1>📐 智能数学出题器</h1>
         <p>给例题 · 给知识点 · 直接提要求，都能出题</p>
       </div>
       <button class="key-btn" id="keyBtn">🔑 密钥</button>
@@ -644,42 +653,47 @@
       });
     }
 
-    function exportPdf() {
+    async function exportPdf() {
       var out = $("outBody");
       if (!out || !out.textContent.trim()) { setStatus("还没有可导出的题目。", true); return; }
       if (!window.html2canvas) { setStatus("图片组件未加载（网络问题），请刷新重试。", true); return; }
       if (!window.jspdf || !window.jspdf.jsPDF) { setStatus("PDF 组件未加载（网络问题），请刷新重试。", true); return; }
+
       setStatus("正在生成 PDF…", false);
-      html2canvas(out, { backgroundColor: "#ffffff", scale: 2 }).then(function (canvas) {
+      var btn = $("exportPdf");
+      btn.disabled = true;
+
+      try {
         var jsPDF = window.jspdf.jsPDF;
         var pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-        var pageW = 210, pageH = 297, margin = 10;
-        var imgW = pageW - margin * 2;          // 图片在页面里的宽度(mm)
-        var pxPerMm = canvas.width / imgW;      // 每毫米对应多少像素
-        var contentHmm = pageH - margin * 2;    // 每页可用高度(mm)
-        var contentHpx = Math.round(contentHmm * pxPerMm);
+        var pageW = 210, pageH = 297, margin = 12;
+        var contentW = pageW - margin * 2;   // 186mm
+        var contentH = pageH - margin * 2;   // 273mm
+        var y = margin;
 
-        var offset = 0, page = 0;
-        while (offset < canvas.height) {
-          if (page > 0) { pdf.addPage(); }
-          var sliceH = Math.min(contentHpx, canvas.height - offset);
-          var sc = document.createElement("canvas");
-          sc.width = canvas.width;
-          sc.height = sliceH;
-          var sctx = sc.getContext("2d");
-          sctx.fillStyle = "#ffffff";
-          sctx.fillRect(0, 0, sc.width, sc.height);
-          sctx.drawImage(canvas, 0, offset, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-          var sliceHmm = sliceH / pxPerMm;
-          pdf.addImage(sc.toDataURL("image/jpeg", 0.92), "JPEG", margin, margin, imgW, sliceHmm);
-          offset += sliceH;
-          page++;
+        // 按「段落/公式/图」逐块渲染并分页，避免把一行字切到两页
+        var blocks = out.querySelectorAll("h1, h2, h3, h4, p, ul, ol, .graph-wrap, pre, blockquote");
+        for (var i = 0; i < blocks.length; i++) {
+          var el = blocks[i];
+          if (!el || !el.textContent || !el.textContent.trim()) continue;
+          var canvas = await html2canvas(el, { backgroundColor: "#ffffff", scale: 2 });
+          var imgHmm = canvas.height * (contentW / canvas.width);
+          if (y + imgHmm > pageH - margin && y > margin) {
+            pdf.addPage();
+            y = margin;
+          }
+          if (imgHmm > contentH) { imgHmm = contentH; }  // 极端长块限高（几乎不会触发）
+          pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", margin, y, contentW, imgHmm);
+          y += imgHmm + 1.5;
         }
+
         pdf.save("出题.pdf");
         setStatus("PDF 已生成并开始下载 ✓", false);
-      }).catch(function (e) {
+      } catch (e) {
         setStatus("生成 PDF 失败：" + (e && e.message ? e.message : e), true);
-      });
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     $("exportImg").addEventListener("click", exportImage);
@@ -727,6 +741,13 @@
     switchMode("mimic");
     if (!API_KEY && !cfg.proxyUrl) { openKeyModal("首次使用请粘贴你的硅基流动密钥（只保存在本机浏览器）。"); }
   })();
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function () {});
+      });
+    }
   </script>
 </body>
 </html>
