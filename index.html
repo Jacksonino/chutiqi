@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>智能数学出题器</title>
+  <title>小许同学专用</title>
 
   <!-- PWA：可添加到主屏幕 / 打包成 App -->
   <link rel="manifest" href="manifest.webmanifest" />
@@ -136,6 +136,13 @@
     .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; font-weight: 700; color: #475569; }
     .modal-box img { max-width: 100%; border-radius: 8px; border: 1px solid var(--line); }
 
+    /* 加载动画遮罩 */
+    .loading-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,.55); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 18px; }
+    .loading-overlay.show { display: flex; }
+    .spinner { width: 48px; height: 48px; border: 5px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: #fff; font-size: 15px; font-weight: 600; }
+
     /* 打印/存PDF：只保留出题结果 */
     @media print {
       header, .card:not(.output), footer, .out-head .mini-btn, .modal { display: none !important; }
@@ -152,7 +159,7 @@
   <header>
     <div class="head-row">
       <div>
-        <h1>📐 智能数学出题器</h1>
+        <h1>📐 小许同学专用</h1>
         <p>出卷 · 仿例题 · 按知识点，都能出题</p>
       </div>
       <button class="key-btn" id="keyBtn">🔑 密钥</button>
@@ -269,6 +276,12 @@
       </div>
     </div>
 
+    <!-- 加载动画遮罩 -->
+    <div class="loading-overlay" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">处理中…</div>
+    </div>
+
     <footer>内部教学工具 · 题目由 AI 生成，建议老师过目后再使用</footer>
   </main>
 
@@ -278,9 +291,7 @@
     // ---------- 读取配置 ----------
     var cfg = (window.APP_CONFIG || {});
     var LS_KEY = "chutiqi_api_key";
-    var storedKey = "";
-    try { storedKey = localStorage.getItem(LS_KEY) || ""; } catch (e) {}
-    var API_KEY = storedKey || (cfg.apiKey || "");
+    var API_KEY = readStoredKey() || (cfg.apiKey || "");
     var BASE_URL = cfg.baseUrl || "https://api.siliconflow.cn/v1/chat/completions";
     // 有 proxyUrl 就走服务端代理（部署版：密钥在服务端，且无跨域问题）；
     // 否则本地用 apiKey 直连硅基流动；两者都没有则回退到同源 /api/chat。
@@ -297,6 +308,43 @@
     }
 
     function $(id) { return document.getElementById(id); }
+
+    function storeStoredKey(v) {
+      try { localStorage.setItem(LS_KEY, v); } catch (e) {}
+      try { document.cookie = LS_KEY + "=" + encodeURIComponent(v) + "; max-age=31536000; path=/; SameSite=Lax"; } catch (e) {}
+    }
+    function readStoredKey() {
+      try { var ls = localStorage.getItem(LS_KEY); if (ls) return ls; } catch (e) {}
+      try {
+        var m = document.cookie.match(new RegExp("(?:^|;\\s*)" + LS_KEY + "=([^;]*)"));
+        if (m) return decodeURIComponent(m[1]);
+      } catch (e) {}
+      return "";
+    }
+
+    // ---------- 加载动画 ----------
+    var loadingInterval = null;
+    function showLoading(text) {
+      $("loadingText").textContent = text || "处理中…";
+      $("loading").classList.add("show");
+    }
+    function startLoadingTips(slow) {
+      var tips = slow
+        ? ["正在读题…（推理模型较慢，请耐心等待）", "正在组织知识点…", "正在深度思考…", "正在验算答案…", "马上就好…"]
+        : ["正在读题…", "正在组织知识点…", "正在验算答案…", "正在排版公式…", "正在画图…", "马上就好…"];
+      var i = 0;
+      $("loading").classList.add("show");
+      $("loadingText").textContent = tips[0];
+      if (loadingInterval) clearInterval(loadingInterval);
+      loadingInterval = setInterval(function () {
+        i = (i + 1) % tips.length;
+        $("loadingText").textContent = tips[i];
+      }, 2600);
+    }
+    function hideLoading() {
+      $("loading").classList.remove("show");
+      if (loadingInterval) { clearInterval(loadingInterval); loadingInterval = null; }
+    }
 
     // ---------- 三种模式 ----------
     var currentMode = "exam";
@@ -326,9 +374,9 @@
       "【难度分级标准（必须严格执行，宁难勿易）】",
       "- 基础：单一知识点，一步到两步直接计算，套公式/定义即可。",
       "- 中等：单一知识点，2~3 步，需要一定变形或转换（移项、配方、换元、拆项等）。",
-      "- 较难：1~2 个知识点结合，多步推理，含参数、分类讨论或逆向设问。",
-      "- 压轴：多个知识点综合、通常 4 步以上；必须具备压轴题特征——数形结合、分类讨论、求最值/取值范围、存在性问题、动点问题、几何代数结合等；以解答题为主，设问层层递进（第1问基础、第2问中等、第3问较难）。",
-      "特别强调：当用户选「压轴」时，宁可偏难也不许偏易；每道压轴题必须至少结合两个知识点，并至少含一个较难设问。",
+      "- 较难：1~2 个知识点结合，多步推理，含参数、分类讨论、逆向设问或隐含条件。",
+      "- 压轴：必须是中考/高考压轴题的难度——多个知识点综合、至少 4 步推理；必须具备至少一种压轴特征（数形结合、分类讨论、求最值/取值范围、存在性问题、动点问题、几何代数结合、含参数讨论）；以解答题为主，设问层层递进（第1问基础送分、第2问中等、第3问较难）。",
+      "【难度自检，必须做】出完题后逐题对照上面标准自查：用户选「较难」或「压轴」而题目偏简单，属于严重失误，必须重写。压轴题宁可偏难也不许偏易；拿不准就往难了出。",
       "",
       "【带图题目 / 函数图像】",
       "需要画函数图像（一次、二次、反比例、三角、对数等）时，在题目下方用 fenced 代码块给出函数表达式，前端会自动画图，题目里写「如图」即可：",
@@ -378,7 +426,10 @@
       var withAnswer = $("answer").checked;
 
       var gradeStr = (grade && grade !== "不限") ? "年级/学段：" + grade : "";
-      var diffStr = (difficulty && difficulty !== "不限") ? "难度：" + difficulty : "";
+      var diffStr = "";
+      if (difficulty === "压轴") { diffStr = "难度：压轴（硬性要求，必须达到中考/高考压轴题难度，宁难勿易，偏难不算错）"; }
+      else if (difficulty === "较难") { diffStr = "难度：较难（硬性要求，必须多步推理、含参数或分类讨论，明显难于中等题）"; }
+      else if (difficulty && difficulty !== "不限") { diffStr = "难度：" + difficulty; }
       var ansStr = withAnswer ? "请为每道题附上【答案与解析】，解析写出关键步骤。" : "只出题目，不要给出任何答案或提示。";
 
       if (currentMode === "exam") {
@@ -434,7 +485,7 @@
       if (!API_KEY && !cfg.proxyUrl) { openKeyModal("请先输入 API 密钥再出题。"); return; }
 
       var slow = isReasoningModel(currentModel);
-      setStatus(slow ? "正在出题…推理模型较慢，可能需要 1~3 分钟，请耐心等待" : "正在出题，请稍候（一般十几秒）…", false);
+      startLoadingTips(slow);
       $("generate").disabled = true;
       var timer = null;
 
@@ -486,6 +537,7 @@
           setStatus("出题失败：" + e.message + "（若提示网络或 CORS 错误，见 README 的“常见问题”）", true);
         }
       } finally {
+        hideLoading();
         if (timer) { clearTimeout(timer); }
         $("generate").disabled = false;
       }
@@ -647,6 +699,36 @@
         return f.evaluate(scope);
       } catch (e) { return NaN; }
     }
+    function trimWhitespace(canvas) {
+      var w = canvas.width, h = canvas.height;
+      if (!w || !h) return null;
+      var data;
+      try { data = canvas.getContext("2d").getImageData(0, 0, w, h).data; } catch (e) { return canvas; }
+      var top = -1, bottom = -1;
+      for (var y = 0; y < h; y++) {
+        var rs = y * w * 4;
+        for (var x = 0; x < w; x++) {
+          var p = rs + x * 4;
+          if (data[p] < 250 || data[p + 1] < 250 || data[p + 2] < 250) { top = y; break; }
+        }
+        if (top !== -1) break;
+      }
+      if (top === -1) return null; // 整块空白
+      for (var y2 = h - 1; y2 >= top; y2--) {
+        var rs2 = y2 * w * 4;
+        for (var x2 = 0; x2 < w; x2++) {
+          var p2 = rs2 + x2 * 4;
+          if (data[p2] < 250 || data[p2 + 1] < 250 || data[p2 + 2] < 250) { bottom = y2; break; }
+        }
+        if (bottom !== -1) break;
+      }
+      if (bottom < top) return null;
+      var crop = document.createElement("canvas");
+      crop.width = w;
+      crop.height = bottom - top + 1;
+      crop.getContext("2d").drawImage(canvas, 0, top, w, bottom - top + 1, 0, 0, w, bottom - top + 1);
+      return crop;
+    }
     function niceStep(range, target) {
       var raw = range / target;
       var mag = Math.pow(10, Math.floor(Math.log10(raw)));
@@ -663,15 +745,17 @@
     function exportImage() {
       var out = $("outBody");
       if (!out || !out.textContent.trim()) { setStatus("还没有可导出的题目。", true); return; }
-      setStatus("正在生成图片…", false);
       if (!window.html2canvas) { setStatus("图片组件未加载（网络问题），请刷新重试。", true); return; }
+      showLoading("正在生成图片…");
       html2canvas(out, { backgroundColor: "#ffffff", scale: 2 }).then(function (canvas) {
+        hideLoading();
         var url = canvas.toDataURL("image/png");
         $("imgPreview").src = url;
         $("imgDownload").href = url;
         $("imgModal").classList.add("show");
         setStatus("图片已生成，长按图片即可保存到相册 ✓", false);
       }).catch(function (e) {
+        hideLoading();
         setStatus("导出图片失败：" + (e && e.message ? e.message : e), true);
       });
     }
@@ -689,7 +773,7 @@
       if (!window.html2canvas) { setStatus("图片组件未加载（网络问题），请刷新重试。", true); return; }
       if (!window.jspdf || !window.jspdf.jsPDF) { setStatus("PDF 组件未加载（网络问题），请刷新重试。", true); return; }
 
-      setStatus("正在生成 PDF…", false);
+      showLoading("正在生成 PDF…");
       var btn = $("exportPdf");
       btn.disabled = true;
 
@@ -726,6 +810,8 @@
           var el = blocks[i];
           if (!el || !el.textContent || !el.textContent.trim()) continue;
           var canvas = await html2canvas(el, { backgroundColor: "#ffffff", scale: 2 });
+          canvas = trimWhitespace(canvas);
+          if (!canvas) continue;
           var imgHmm = canvas.height * (contentW / canvas.width);
           if (y + imgHmm > pageH - margin && y > margin) {
             pdf.addPage();
@@ -741,6 +827,7 @@
       } catch (e) {
         setStatus("生成 PDF 失败：" + (e && e.message ? e.message : e), true);
       } finally {
+        hideLoading();
         document.body.removeChild(holder);
         btn.disabled = false;
       }
@@ -778,7 +865,7 @@
       var v = ($("keyInput").value || "").trim();
       if (!v) { $("keyErr").textContent = "密钥不能为空。"; return; }
       API_KEY = v;
-      try { localStorage.setItem(LS_KEY, v); } catch (e) {}
+      storeStoredKey(v);
       closeKeyModal();
       setStatus("密钥已保存到本机浏览器 ✓（仅本设备有效）", false);
     }
