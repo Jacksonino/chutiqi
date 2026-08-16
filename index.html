@@ -139,9 +139,9 @@
     /* 加载动画遮罩 */
     .loading-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,.55); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 18px; }
     .loading-overlay.show { display: flex; }
-    .spinner { width: 48px; height: 48px; border: 5px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay canvas { width: min(300px, 80vw); height: auto; }
     .loading-text { color: #fff; font-size: 15px; font-weight: 600; }
+    .tap-hint { color: rgba(255,255,255,.85); font-size: 12px; }
 
     /* 打印/存PDF：只保留出题结果 */
     @media print {
@@ -278,8 +278,9 @@
 
     <!-- 加载动画遮罩 -->
     <div class="loading-overlay" id="loading">
-      <div class="spinner"></div>
+      <canvas id="catCanvas" width="320" height="150"></canvas>
       <div class="loading-text" id="loadingText">处理中…</div>
+      <div class="tap-hint">👆 点一下，帮小猫抓住老鼠</div>
     </div>
 
     <footer>内部教学工具 · 题目由 AI 生成，建议老师过目后再使用</footer>
@@ -322,11 +323,69 @@
       return "";
     }
 
-    // ---------- 加载动画 ----------
+    // ---------- 加载动画：小猫抓老鼠 ----------
     var loadingInterval = null;
+    var catAnimId = null;
+
+    function startCatAnim() {
+      var cv = $("catCanvas");
+      if (!cv || !cv.getContext) return;
+      stopCatAnim();
+      var dpr = window.devicePixelRatio || 1;
+      var W = 320, H = 150;
+      cv.width = W * dpr; cv.height = H * dpr;
+      var ctx = cv.getContext("2d");
+      ctx.scale(dpr, dpr);
+
+      var mouse = { x: W * 0.72, y: H * 0.5, vx: 2.1, vy: 1.5 };
+      var cat = { x: W * 0.22, y: H * 0.5 };
+      var caught = 0, CAT_SPEED = 1.75;
+
+      function frame() {
+        if (caught > 0) {
+          caught--;
+          if (caught === 0) {
+            mouse.x = 30 + Math.random() * (W - 60);
+            mouse.y = 30 + Math.random() * (H - 60);
+            mouse.vx = (Math.random() < 0.5 ? -1 : 1) * (1.6 + Math.random());
+            mouse.vy = (Math.random() < 0.5 ? -1 : 1) * (1.2 + Math.random());
+          }
+        } else {
+          mouse.x += mouse.vx; mouse.y += mouse.vy;
+          if (mouse.x < 22 || mouse.x > W - 22) mouse.vx *= -1;
+          if (mouse.y < 24 || mouse.y > H - 24) mouse.vy *= -1;
+          var dx = mouse.x - cat.x, dy = mouse.y - cat.y;
+          var d = Math.sqrt(dx * dx + dy * dy);
+          if (d > 1) { cat.x += dx / d * CAT_SPEED; cat.y += dy / d * CAT_SPEED; }
+          if (d < 22) { caught = 42; }
+        }
+
+        ctx.clearRect(0, 0, W, H);
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        if (caught > 0) {
+          ctx.font = "38px serif";
+          ctx.fillText("😸", cat.x, cat.y);
+          ctx.font = "20px serif";
+          ctx.fillText("💥", (mouse.x + cat.x) / 2, (mouse.y + cat.y) / 2 - 16);
+        } else {
+          ctx.font = "38px serif";
+          ctx.fillText("🐱", cat.x, cat.y);
+          ctx.font = "28px serif";
+          ctx.fillText("🐭", mouse.x, mouse.y);
+        }
+        catAnimId = requestAnimationFrame(frame);
+      }
+      cv.onclick = function () { if (caught === 0) { caught = 42; } };
+      frame();
+    }
+    function stopCatAnim() {
+      if (catAnimId) { cancelAnimationFrame(catAnimId); catAnimId = null; }
+    }
+
     function showLoading(text) {
       $("loadingText").textContent = text || "处理中…";
       $("loading").classList.add("show");
+      startCatAnim();
     }
     function startLoadingTips(slow) {
       var tips = slow
@@ -335,6 +394,7 @@
       var i = 0;
       $("loading").classList.add("show");
       $("loadingText").textContent = tips[0];
+      startCatAnim();
       if (loadingInterval) clearInterval(loadingInterval);
       loadingInterval = setInterval(function () {
         i = (i + 1) % tips.length;
@@ -343,6 +403,7 @@
     }
     function hideLoading() {
       $("loading").classList.remove("show");
+      stopCatAnim();
       if (loadingInterval) { clearInterval(loadingInterval); loadingInterval = null; }
     }
 
@@ -797,29 +858,53 @@
       }
 
       try {
+        // 整页渲染成一张长图，再按「空白行」智能切页：既不切字、也不留大段空白
+        var full = await html2canvas(clone, { backgroundColor: "#ffffff", scale: 1.5 });
+        full = trimWhitespace(full);
+        if (!full) { setStatus("内容为空，无法生成 PDF。", true); return; }
+
         var jsPDF = window.jspdf.jsPDF;
         var pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
         var pageW = 210, pageH = 297, margin = 12;
         var contentW = pageW - margin * 2;   // 186mm
         var contentH = pageH - margin * 2;   // 273mm
-        var y = margin;
+        var pxPerMm = full.width / contentW;
+        var contentHpx = Math.round(contentH * pxPerMm);
 
-        // 按「段落/公式/图」逐块渲染并分页，避免把一行字切到两页
-        var blocks = clone.querySelectorAll("h1, h2, h3, h4, p, ul, ol, .graph-wrap, pre, blockquote");
-        for (var i = 0; i < blocks.length; i++) {
-          var el = blocks[i];
-          if (!el || !el.textContent || !el.textContent.trim()) continue;
-          var canvas = await html2canvas(el, { backgroundColor: "#ffffff", scale: 2 });
-          canvas = trimWhitespace(canvas);
-          if (!canvas) continue;
-          var imgHmm = canvas.height * (contentW / canvas.width);
-          if (y + imgHmm > pageH - margin && y > margin) {
-            pdf.addPage();
-            y = margin;
+        // 标记每一行是否“全白”
+        var fctx = full.getContext("2d");
+        var data = fctx.getImageData(0, 0, full.width, full.height).data;
+        var whiteRows = new Uint8Array(full.height);
+        for (var yy = 0; yy < full.height; yy++) {
+          var rowWhite = true;
+          var base = yy * full.width * 4;
+          for (var xx = 0; xx < full.width; xx++) {
+            var p = base + xx * 4;
+            if (data[p] < 250 || data[p + 1] < 250 || data[p + 2] < 250) { rowWhite = false; break; }
           }
-          if (imgHmm > contentH) { imgHmm = contentH; }
-          pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", margin, y, contentW, imgHmm);
-          y += imgHmm + 1.5;
+          whiteRows[yy] = rowWhite ? 1 : 0;
+        }
+
+        var y0 = 0, page = 0;
+        while (y0 < full.height) {
+          if (page > 0) { pdf.addPage(); }
+          var targetEnd = Math.min(y0 + contentHpx, full.height);
+          var cutY = targetEnd;
+          if (targetEnd < full.height) {
+            var searchTo = y0 + Math.floor(contentHpx * 0.3);
+            for (var sy = targetEnd; sy >= searchTo; sy--) {
+              if (whiteRows[sy]) { cutY = sy; break; }
+            }
+          }
+          if (cutY <= y0) { cutY = targetEnd; }
+          var sliceH = cutY - y0;
+          var slice = document.createElement("canvas");
+          slice.width = full.width; slice.height = sliceH;
+          slice.getContext("2d").drawImage(full, 0, y0, full.width, sliceH, 0, 0, full.width, sliceH);
+          var sliceHmm = sliceH / pxPerMm;
+          pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", margin, margin, contentW, sliceHmm);
+          y0 = cutY;
+          page++;
         }
 
         pdf.save((name || "出题") + ".pdf");
