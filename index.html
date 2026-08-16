@@ -12,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <!-- 导出图片 + 函数图像绘制 -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mathjs@12/lib/browser/math.js"></script>
 
   <style>
@@ -77,6 +78,9 @@
       border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--text);
       outline: none;
     }
+    .seg { display: flex; border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .seg-btn { flex: 1; padding: 9px 0; font-size: 15px; border: none; background: #fff; color: #475569; cursor: pointer; }
+    .seg-btn.active { background: var(--brand); color: #fff; }
     .check { display: flex; align-items: center; gap: 6px; font-size: 14px; margin-top: 12px; color: var(--text); }
     .check input { width: 18px; height: 18px; }
 
@@ -188,6 +192,13 @@
             <option value="压轴">压轴</option>
           </select>
         </div>
+        <div class="field">
+          <label>模型速度</label>
+          <div class="seg" id="modelSeg">
+            <button type="button" class="seg-btn active" data-model="fast" title="deepseek-ai/DeepSeek-V3（快）">快</button>
+            <button type="button" class="seg-btn" data-model="slow" title="deepseek-ai/DeepSeek-R1（慢，推理模型）">慢</button>
+          </div>
+        </div>
       </div>
 
       <div class="check">
@@ -253,9 +264,16 @@
     // 有 proxyUrl 就走服务端代理（部署版：密钥在服务端，且无跨域问题）；
     // 否则本地用 apiKey 直连硅基流动；两者都没有则回退到同源 /api/chat。
     var API_URL = cfg.proxyUrl || (API_KEY ? BASE_URL : "/api/chat");
-    var MODEL = cfg.model || "deepseek-ai/DeepSeek-V3";
+    var MODEL_FAST = cfg.modelFast || "deepseek-ai/DeepSeek-V3";
+    var MODEL_SLOW = cfg.modelSlow || "deepseek-ai/DeepSeek-R1";
+    var currentModel = MODEL_FAST;
     var TEMPERATURE = (typeof cfg.temperature === "number") ? cfg.temperature : 0.6;
     var MAX_TOKENS = cfg.maxTokens || 4096;
+
+    function isReasoningModel(m) {
+      var s = (m || "").toLowerCase();
+      return s.indexOf("r1") !== -1 || s.indexOf("reasoner") !== -1 || s.indexOf("reasoning") !== -1 || s.indexOf("qwq") !== -1;
+    }
 
     function $(id) { return document.getElementById(id); }
 
@@ -383,17 +401,22 @@
       if (!input) { setStatus("请先在上方输入例题 / 知识点 / 要求。", true); return; }
       if (!API_KEY && !cfg.proxyUrl) { openKeyModal("请先输入 API 密钥再出题。"); return; }
 
-      setStatus("正在出题，请稍候（一般十几秒）…", false);
+      var slow = isReasoningModel(currentModel);
+      setStatus(slow ? "正在出题…推理模型较慢，可能需要 1~3 分钟，请耐心等待" : "正在出题，请稍候（一般十几秒）…", false);
       $("generate").disabled = true;
+      var timer = null;
 
       try {
         var headers = { "Content-Type": "application/json" };
         if (API_KEY) { headers["Authorization"] = "Bearer " + API_KEY; }
+        var controller = new AbortController();
+        timer = setTimeout(function () { controller.abort(); }, slow ? 240000 : 120000);
         var resp = await fetch(API_URL, {
           method: "POST",
           headers: headers,
+          signal: controller.signal,
           body: JSON.stringify({
-            model: MODEL,
+            model: currentModel,
             messages: [
               { role: "system", content: SYSTEM_PROMPT },
               { role: "user", content: buildUserMessage() }
@@ -411,14 +434,27 @@
         }
 
         var data = await resp.json();
-        var content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "";
-        if (!content) { setStatus("没有收到内容，接口返回异常。", true); return; }
+        var msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
+        var content = msg.content || "";
+        if (!content) {
+          if (msg.reasoning_content) {
+            setStatus("模型只返回了思考过程、没有正式答案（可能题目太多或长度不够）。请减少题目数量，或切成「快」模型。", true);
+          } else {
+            setStatus("没有收到内容，接口返回异常。", true);
+          }
+          return;
+        }
 
         renderOutput(content);
         setStatus("出题完成 ✓", false);
       } catch (e) {
-        setStatus("出题失败：" + e.message + "（若提示网络或 CORS 错误，见 README 的“常见问题”）", true);
+        if (e && e.name === "AbortError") {
+          setStatus("请求超时。推理模型出题慢：请减少题目数量，或切成「快」模型。", true);
+        } else {
+          setStatus("出题失败：" + e.message + "（若提示网络或 CORS 错误，见 README 的“常见问题”）", true);
+        }
       } finally {
+        if (timer) { clearTimeout(timer); }
         $("generate").disabled = false;
       }
     }
@@ -608,11 +644,46 @@
       });
     }
 
+    function exportPdf() {
+      var out = $("outBody");
+      if (!out || !out.textContent.trim()) { setStatus("还没有可导出的题目。", true); return; }
+      if (!window.html2canvas) { setStatus("图片组件未加载（网络问题），请刷新重试。", true); return; }
+      if (!window.jspdf || !window.jspdf.jsPDF) { setStatus("PDF 组件未加载（网络问题），请刷新重试。", true); return; }
+      setStatus("正在生成 PDF…", false);
+      html2canvas(out, { backgroundColor: "#ffffff", scale: 2 }).then(function (canvas) {
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        var pageW = 210, pageH = 297, margin = 10;
+        var imgW = pageW - margin * 2;          // 图片在页面里的宽度(mm)
+        var pxPerMm = canvas.width / imgW;      // 每毫米对应多少像素
+        var contentHmm = pageH - margin * 2;    // 每页可用高度(mm)
+        var contentHpx = Math.round(contentHmm * pxPerMm);
+
+        var offset = 0, page = 0;
+        while (offset < canvas.height) {
+          if (page > 0) { pdf.addPage(); }
+          var sliceH = Math.min(contentHpx, canvas.height - offset);
+          var sc = document.createElement("canvas");
+          sc.width = canvas.width;
+          sc.height = sliceH;
+          var sctx = sc.getContext("2d");
+          sctx.fillStyle = "#ffffff";
+          sctx.fillRect(0, 0, sc.width, sc.height);
+          sctx.drawImage(canvas, 0, offset, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+          var sliceHmm = sliceH / pxPerMm;
+          pdf.addImage(sc.toDataURL("image/jpeg", 0.92), "JPEG", margin, margin, imgW, sliceHmm);
+          offset += sliceH;
+          page++;
+        }
+        pdf.save("出题.pdf");
+        setStatus("PDF 已生成并开始下载 ✓", false);
+      }).catch(function (e) {
+        setStatus("生成 PDF 失败：" + (e && e.message ? e.message : e), true);
+      });
+    }
+
     $("exportImg").addEventListener("click", exportImage);
-    $("exportPdf").addEventListener("click", function () {
-      if (!$("outBody").textContent.trim()) { setStatus("还没有可导出的题目。", true); return; }
-      window.print();
-    });
+    $("exportPdf").addEventListener("click", exportPdf);
     $("closeModal").addEventListener("click", function () { $("imgModal").classList.remove("show"); });
     $("imgModal").addEventListener("click", function (e) { if (e.target === $("imgModal")) { $("imgModal").classList.remove("show"); } });
 
@@ -640,6 +711,17 @@
     $("keyCancel").addEventListener("click", closeKeyModal);
     $("keyModal").addEventListener("click", function (e) { if (e.target === $("keyModal")) { closeKeyModal(); } });
     $("keyInput").addEventListener("keydown", function (e) { if (e.key === "Enter") { saveKey(); } });
+
+    // 快/慢模型切换
+    var segBtns = document.querySelectorAll("#modelSeg .seg-btn");
+    for (var i = 0; i < segBtns.length; i++) {
+      segBtns[i].addEventListener("click", function () {
+        currentModel = (this.getAttribute("data-model") === "slow") ? MODEL_SLOW : MODEL_FAST;
+        for (var j = 0; j < segBtns.length; j++) {
+          segBtns[j].classList.toggle("active", segBtns[j] === this);
+        }
+      });
+    }
 
     // 初始化
     switchMode("mimic");
