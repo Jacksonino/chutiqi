@@ -6,7 +6,7 @@
 window.APP_CONFIG = {
   // ★ 把密钥（sk- 开头的一串）粘贴到下面两个引号中间，就永不再要求输入。
   // 注意：填了之后密钥会公开在 GitHub 仓库里——请保持账户余额较低，必要时去后台重置 key。
-  apiKey: "sk-qihfeovhoizgqfknsxcbejbtenukaoxysfdoqayqcrxqtfxj",
+  apiKey: "sk_tr_wnAMbA3i2AKQuEVEtlSkg2kDCRuO8dhbtytCgxgeHJw",
 
   // 接口地址（硅基流动，OpenAI 兼容格式，一般不用改）
   baseUrl: "https://api.siliconflow.cn/v1/chat/completions",
