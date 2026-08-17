@@ -454,6 +454,7 @@
       "【硬性规则，必须遵守】",
       "1. 所有数学公式、分式、根号、指数、几何记号，一律用 LaTeX 书写：行内用 $...$，独立成行用 $$...$$。例如 $\\frac{1}{2}$、$x^2+2x+1=0$、$\\sqrt{2}$。禁止用纯文本堆砌公式。",
       "1b. 只使用最基础的 LaTeX 命令（如 \\frac、乘方 ^、\\sqrt、\\times、\\div、\\pm、希腊字母、=<>≤≥≠ 等）；禁止使用复杂环境（\\begin{aligned}、矩阵、\\begin{cases} 等），以免在网页里显示成乱码或源码。",
+      "1c. 选择题选项之间、题干里对齐用的空格，一律用普通空格（或每个选项单独一行，如「A. $x=1$」）表示；严禁使用 \\quad、\\qquad、\\;、\\,、\\! 等 LaTeX 间距命令来排列选项——它们在网页里会显示成乱码（比如 /quad）。",
       "2. 题目条件完整、无歧义、数据合理；应用题数值符合实际（人数、个数应为整数等）。",
       "3. 严格遵循用户指定的年级/学段、题目数量、题型和难度（难度分级见下方标准）；未指定难度时默认中等。",
       "4. 每道题出完后在心里验算一遍，确保可解、答案正确。",
@@ -542,8 +543,34 @@
     }
 
     // ---------- 渲染输出 ----------
+    // 清理模型在公式外误写的 LaTeX 间距命令（\quad、\qquad 等），避免显示成乱码
+    function cleanLatexSpacing(md) {
+      if (!md) return md;
+      // 1) 反斜杠被写成斜杠的（/quad 等）——永远非法，换成空格
+      md = md.replace(/\/\s*\\?\s*(quad|qquad|enspace|;|,|!)/g, " ");
+      // 2) 用占位符保护 $...$ 与 $$...$$ 里的内容，避免误删公式内的间距
+      var stash = [];
+      md = md.replace(/\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g, function (m) {
+        stash.push(m);
+        return "\u0001" + (stash.length - 1) + "\u0002";
+      });
+      // 3) 数学段之外，把 \quad、\qquad、\;、\,、\!、\enspace 换成空格
+      md = md.replace(/\\quad\b/g, " ")
+             .replace(/\\qquad\b/g, " ")
+             .replace(/\\enspace\b/g, " ")
+             .replace(/\\;/g, " ")
+             .replace(/\\,/g, " ")
+             .replace(/\\!/g, " ");
+      // 4) 还原数学段
+      for (var i = 0; i < stash.length; i++) {
+        md = md.split("\u0001" + i + "\u0002").join(stash[i]);
+      }
+      return md;
+    }
+
     function renderOutput(md) {
       var out = $("outBody");
+      md = cleanLatexSpacing(md);
       var html;
       try { html = marked.parse(md); }
       catch (e) { html = "<pre>" + escapeHtml(md) + "</pre>"; }
