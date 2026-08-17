@@ -93,6 +93,20 @@
     .check { display: flex; align-items: center; gap: 6px; font-size: 14px; margin-top: 12px; color: var(--text); }
     .check input { width: 18px; height: 18px; }
 
+    /* 拍照识别题目 */
+    .photo-row { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .photo-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 16px; font-size: 15px; font-weight: 600;
+      color: var(--brand); background: #eef4ff;
+      border: 1.5px dashed var(--brand); border-radius: 10px; cursor: pointer;
+    }
+    .photo-btn:active { background: #dfe9ff; }
+    .photo-status { font-size: 13px; color: var(--muted); }
+    .photo-preview { display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
+    .photo-preview img { height: 64px; max-width: 120px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+    .photo-clear { border: none; background: #eef2fb; color: #475569; border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+
     /* 按钮 */
     button.primary {
       width: 100%; padding: 14px; margin-top: 12px;
@@ -178,6 +192,18 @@
 
     <div class="card">
       <textarea id="input" placeholder="在这里输入内容…"></textarea>
+
+      <div class="photo-row" id="photoRow" style="display:none;">
+        <button type="button" class="photo-btn" id="photoBtn">📷 拍照识别</button>
+        <button type="button" class="photo-btn" id="galleryBtn">🖼 相册选图</button>
+        <span class="photo-status" id="photoStatus"></span>
+        <span class="photo-preview" id="photoPreview" style="display:none;">
+          <img id="photoImg" alt="题目照片" />
+          <button type="button" class="photo-clear" id="photoClear">✕</button>
+        </span>
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;" />
+        <input type="file" id="galleryInput" accept="image/*" style="display:none;" />
+      </div>
 
       <div class="controls">
         <div class="field">
@@ -300,6 +326,7 @@
     var MODEL_FAST = cfg.modelFast || "deepseek-ai/DeepSeek-V3";
     var MODEL_SLOW = cfg.modelSlow || "deepseek-ai/DeepSeek-R1";
     var currentModel = MODEL_FAST;
+    var MODEL_VISION = cfg.modelVision || "Qwen/Qwen2.5-VL-72B-Instruct";
     var TEMPERATURE = (typeof cfg.temperature === "number") ? cfg.temperature : 0.6;
     var MAX_TOKENS = cfg.maxTokens || 4096;
 
@@ -613,6 +640,7 @@
       }
       $("hint").textContent = HINTS[mode];
       $("input").placeholder = PLACEHOLDERS[mode];
+      $("photoRow").style.display = (mode === "mimic") ? "flex" : "none";
     }
 
     var tabs = document.querySelectorAll("#tabs .tab");
@@ -970,6 +998,137 @@
         }
       });
     }
+
+    // ---------- 拍照识别题目（仿例题模式） ----------
+    var OCR_PROMPT = [
+      "请把这张图片里的数学题目完整、准确地转录成文字，作为「仿例题出题」的例题。",
+      "要求：",
+      "1. 只输出题目原文：题干、选项，以及图片里已经出现的答案/解析（若有）都要转录。",
+      "2. 数学公式、分式、根号、指数、几何记号一律转成 LaTeX，行内用 $...$，独立公式用 $$...$$。",
+      "3. 不要添加任何解释、点评或多余文字，也不要解答题目，只做忠实转录。",
+      "4. 若图中有多道题，请全部转录，并保留/补全题号。",
+      "5. 若图片模糊、空白或没有题目，只回复「未能识别」。"
+    ].join("\n");
+
+    function contentToText(c) {
+      if (typeof c === "string") return c;
+      if (Array.isArray(c)) {
+        var parts = [];
+        for (var i = 0; i < c.length; i++) {
+          if (c[i] && typeof c[i].text === "string") parts.push(c[i].text);
+        }
+        return parts.join("");
+      }
+      return "";
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onload = function () { resolve(reader.result); };
+        reader.onerror = function () { reject(new Error("读取图片失败")); };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function compressImageDataUrl(dataUrl, maxDim, quality) {
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        img.onload = function () {
+          var w = img.width, h = img.height;
+          if (!w || !h) { reject(new Error("图片无法解析")); return; }
+          var scale = Math.min(1, maxDim / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * scale));
+          var ch = Math.max(1, Math.round(h * scale));
+          var canvas = document.createElement("canvas");
+          canvas.width = cw; canvas.height = ch;
+          try {
+            canvas.getContext("2d").drawImage(img, 0, 0, cw, ch);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+          } catch (e) { reject(e); }
+        };
+        img.onerror = function () { reject(new Error("图片无法解析")); };
+        img.src = dataUrl;
+      });
+    }
+
+    async function handlePhotoFile(file) {
+      if (!file) return;
+      if (!/^image\//.test(file.type || "")) { setStatus("请选择图片文件（jpg / png 等）。", true); return; }
+      var timer = null;
+      try {
+        var raw = await readFileAsDataUrl(file);
+        var dataUrl = await compressImageDataUrl(raw, 1600, 0.85);
+
+        $("photoImg").src = dataUrl;
+        $("photoPreview").style.display = "flex";
+        $("photoStatus").textContent = "正在识别…";
+
+        showLoading("正在识别题目…");
+        setStatus("正在识别题目，请稍候…", false);
+
+        var headers = { "Content-Type": "application/json" };
+        if (API_KEY) { headers["Authorization"] = "Bearer " + API_KEY; }
+        var controller = new AbortController();
+        timer = setTimeout(function () { controller.abort(); }, 120000);
+        var resp = await fetch(API_URL, {
+          method: "POST",
+          headers: headers,
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: MODEL_VISION,
+            messages: [
+              { role: "user", content: [
+                { type: "text", text: OCR_PROMPT },
+                { type: "image_url", image_url: { url: dataUrl } }
+              ] }
+            ],
+            temperature: 0.2,
+            max_tokens: 2048,
+            stream: false
+          })
+        });
+
+        if (!resp.ok) {
+          var errText = "";
+          try { errText = await resp.text(); } catch (e) {}
+          throw new Error("识别接口返回 " + resp.status + "：" + errText.slice(0, 300));
+        }
+
+        var data = await resp.json();
+        var msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
+        var text = contentToText(msg.content).trim();
+        if (!text || text === "未能识别") {
+          $("photoStatus").textContent = "未能识别，请重拍或换一张";
+          setStatus("未能识别题目，请重新拍摄（光线充足、对准题目、避免反光/倾斜）。", true);
+          return;
+        }
+
+        $("input").value = text;
+        $("photoStatus").textContent = "已识别 ✓ 请核对后点「开始出题」";
+        setStatus("已识别并填入输入框，请核对无误后点「开始出题」。", false);
+      } catch (e) {
+        $("photoStatus").textContent = "识别失败";
+        if (e && e.name === "AbortError") {
+          setStatus("识别超时，请重试或改为手动输入。", true);
+        } else {
+          setStatus("识别失败：" + (e && e.message ? e.message : e), true);
+        }
+      } finally {
+        hideLoading();
+        if (timer) { clearTimeout(timer); }
+      }
+    }
+
+    $("photoBtn").addEventListener("click", function () { $("cameraInput").click(); });
+    $("galleryBtn").addEventListener("click", function () { $("galleryInput").click(); });
+    $("cameraInput").addEventListener("change", function () { handlePhotoFile(this.files && this.files[0]); this.value = ""; });
+    $("galleryInput").addEventListener("change", function () { handlePhotoFile(this.files && this.files[0]); this.value = ""; });
+    $("photoClear").addEventListener("click", function () {
+      $("photoPreview").style.display = "none";
+      $("photoImg").src = "";
+      $("photoStatus").textContent = "";
+    });
 
     // 初始化
     switchMode("exam");
