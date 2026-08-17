@@ -21,7 +21,7 @@ window.APP_CONFIG = {
   // 如果报“模型不存在”，去 https://cloud.siliconflow.cn/models 挑可用的填进来。
 
   // 拍照识别题目用的视觉模型（能把图片里的题目读成文字 + LaTeX）：
-  modelVision: "Qwen/Qwen2.5-VL-72B-Instruct",
+  modelVision: "Qwen/Qwen3.6-35B-A3B",
   // 若识别报“模型不存在”，去 https://cloud.siliconflow.cn/models 选一个带“视觉/VL”的模型填进来。
 
   // 出题“发散程度”：0.3 更稳更规范，0.8 更多样。默认 0.6 即可。
