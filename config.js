@@ -20,6 +20,10 @@ window.APP_CONFIG = {
   modelSlow: "deepseek-ai/DeepSeek-R1",   // 慢：推理模型，数学更难更稳，但可能 1~3 分钟
   // 如果报“模型不存在”，去 https://cloud.siliconflow.cn/models 挑可用的填进来。
 
+  // 拍照识别题目用的视觉模型（能把图片里的题目读成文字 + LaTeX）：
+  modelVision: "Qwen/Qwen2.5-VL-72B-Instruct",
+  // 若识别报“模型不存在”，去 https://cloud.siliconflow.cn/models 选一个带“视觉/VL”的模型填进来。
+
   // 出题“发散程度”：0.3 更稳更规范，0.8 更多样。默认 0.6 即可。
   temperature: 0.6,
 
