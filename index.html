@@ -326,7 +326,7 @@
     var MODEL_FAST = cfg.modelFast || "deepseek-ai/DeepSeek-V3";
     var MODEL_SLOW = cfg.modelSlow || "deepseek-ai/DeepSeek-R1";
     var currentModel = MODEL_FAST;
-    var MODEL_VISION = cfg.modelVision || "Qwen/Qwen2.5-VL-72B-Instruct";
+    var MODEL_VISION = cfg.modelVision || "Qwen/Qwen3-VL-8B-Instruct";
     var TEMPERATURE = (typeof cfg.temperature === "number") ? cfg.temperature : 0.6;
     var MAX_TOKENS = cfg.maxTokens || 4096;
 
@@ -569,7 +569,14 @@
     // ---------- 调用 API ----------
     async function generate() {
       var input = $("input").value.trim();
-      if (!input) { setStatus("请先在上方输入例题 / 知识点 / 要求。", true); return; }
+      if (!input) {
+        if (currentMode === "mimic") {
+          setStatus("请先在上方输入例题，或用下方的「📷 拍照识别 / 🖼 相册选图」拍照填入题目。", true);
+        } else {
+          setStatus("请先在上方输入例题 / 知识点 / 要求。", true);
+        }
+        return;
+      }
       if (!API_KEY && !cfg.proxyUrl) { openKeyModal("请先输入 API 密钥再出题。"); return; }
 
       var slow = isReasoningModel(currentModel);
@@ -1052,26 +1059,13 @@
       });
     }
 
-    async function handlePhotoFile(file) {
-      if (!file) return;
-      if (!/^image\//.test(file.type || "")) { setStatus("请选择图片文件（jpg / png 等）。", true); return; }
-      var timer = null;
-      try {
-        var raw = await readFileAsDataUrl(file);
-        var dataUrl = await compressImageDataUrl(raw, 1600, 0.85);
-
-        $("photoImg").src = dataUrl;
-        $("photoPreview").style.display = "flex";
-        $("photoStatus").textContent = "正在识别…";
-
-        showLoading("正在识别题目…");
-        setStatus("正在识别题目，请稍候…", false);
-
+    function ocrViaApi(dataUrl) {
+      return new Promise(function (resolve, reject) {
         var headers = { "Content-Type": "application/json" };
         if (API_KEY) { headers["Authorization"] = "Bearer " + API_KEY; }
         var controller = new AbortController();
-        timer = setTimeout(function () { controller.abort(); }, 120000);
-        var resp = await fetch(API_URL, {
+        var timer = setTimeout(function () { controller.abort(); }, 120000);
+        fetch(API_URL, {
           method: "POST",
           headers: headers,
           signal: controller.signal,
@@ -1087,17 +1081,81 @@
             max_tokens: 2048,
             stream: false
           })
+        }).then(function (resp) {
+          clearTimeout(timer);
+          if (!resp.ok) {
+            return resp.text().then(function (t) {
+              reject(new Error("识别接口返回 " + resp.status + "：" + t.slice(0, 200)));
+            }, function () {
+              reject(new Error("识别接口返回 " + resp.status));
+            });
+          }
+          return resp.json();
+        }).then(function (data) {
+          if (!data) { return; }
+          var msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
+          resolve(contentToText(msg.content).trim());
+        }).catch(function (e) {
+          clearTimeout(timer);
+          reject(e);
         });
+      });
+    }
 
-        if (!resp.ok) {
-          var errText = "";
-          try { errText = await resp.text(); } catch (e) {}
-          throw new Error("识别接口返回 " + resp.status + "：" + errText.slice(0, 300));
+    var TESSERACT_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+    function ensureTesseract() {
+      return new Promise(function (resolve, reject) {
+        if (window.Tesseract) { resolve(); return; }
+        var s = document.createElement("script");
+        s.src = TESSERACT_CDN;
+        s.onload = function () { resolve(); };
+        s.onerror = function () { reject(new Error("本地识别组件加载失败（网络问题）")); };
+        document.head.appendChild(s);
+      });
+    }
+    async function ocrViaTesseract(imageDataUrl) {
+      await ensureTesseract();
+      var worker = await Tesseract.createWorker("chi_sim");
+      try {
+        var ret = await worker.recognize(imageDataUrl);
+        var text = (ret && ret.data && ret.data.text) ? ret.data.text : "";
+        return text.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+      } finally {
+        try { await worker.terminate(); } catch (e) {}
+      }
+    }
+
+    async function handlePhotoFile(file) {
+      if (!file) return;
+      if (!/^image\//.test(file.type || "")) { setStatus("请选择图片文件（jpg / png 等）。", true); return; }
+      try {
+        var raw = await readFileAsDataUrl(file);
+        var dataUrl = await compressImageDataUrl(raw, 1600, 0.85);
+
+        $("photoImg").src = dataUrl;
+        $("photoPreview").style.display = "flex";
+        $("photoStatus").textContent = "正在识别…";
+
+        showLoading("正在识别题目…");
+        setStatus("正在识别题目，请稍候…", false);
+
+        var text = "";
+        try {
+          text = await ocrViaApi(dataUrl);
+        } catch (apiErr) {
+          var apiMsg = (apiErr && apiErr.message) ? apiErr.message : String(apiErr);
+          if (apiMsg.indexOf("modeldisabled") !== -1 || apiMsg.indexOf("30003") !== -1) {
+            $("photoStatus").textContent = "视觉模型不可用，改用本地识别…";
+            setStatus("视觉模型不可用（该模型在你的账号被禁用），已自动改用本地识别，请稍候。", false);
+          } else {
+            $("photoStatus").textContent = "接口识别失败，改用本地识别…";
+            setStatus("接口识别失败，已自动改用本地识别，请稍候。", false);
+          }
+          $("loadingText").textContent = "正在本地识别…（首次使用需下载识别组件，请耐心等待）";
+          text = await ocrViaTesseract(dataUrl);
         }
 
-        var data = await resp.json();
-        var msg = (data.choices && data.choices[0] && data.choices[0].message) || {};
-        var text = contentToText(msg.content).trim();
+        text = (text || "").trim();
         if (!text || text === "未能识别") {
           $("photoStatus").textContent = "未能识别，请重拍或换一张";
           setStatus("未能识别题目，请重新拍摄（光线充足、对准题目、避免反光/倾斜）。", true);
@@ -1116,7 +1174,6 @@
         }
       } finally {
         hideLoading();
-        if (timer) { clearTimeout(timer); }
       }
     }
 
