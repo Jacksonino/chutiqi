@@ -20,9 +20,12 @@ window.APP_CONFIG = {
   modelSlow: "deepseek-ai/DeepSeek-R1",   // 慢：推理模型，数学更难更稳，但可能 1~3 分钟
   // 如果报“模型不存在”，去 https://cloud.siliconflow.cn/models 挑可用的填进来。
 
-  // 拍照识别题目用的视觉模型（能把图片里的题目读成文字 + LaTeX）：
-  modelVision: "Qwen/Qwen3-VL-32B-Instruct",
-  // 若识别报“模型不存在”，去 https://cloud.siliconflow.cn/models 选一个带“视觉/VL”的模型填进来。
+  // 拍照识别题目用的视觉模型（能把图片里的题目读成文字 + LaTeX）。
+  // 硅基流动已下线旧版 Qwen2.5-VL 系列，现改用新版：
+  modelVision: "Qwen/Qwen3-VL-8B-Instruct",
+  // 若识别仍报“modeldisabled / 30003”，说明该模型在你的账号被禁用，
+  // 去 https://cloud.siliconflow.cn/models 挑一个带“视觉/VL”且“可用”的模型填进来。
+  // 不用改也能用：识别失败时会自动切换成本地 OCR（Tesseract，无需 API、不依赖模型）。
 
   // 出题“发散程度”：0.3 更稳更规范，0.8 更多样。默认 0.6 即可。
   temperature: 0.6,
