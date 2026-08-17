@@ -283,10 +283,11 @@
           <span>🔑 输入 API 密钥</span>
           <button class="mini-btn" id="keyCancel">取消</button>
         </div>
-        <p style="font-size:13px;color:#6b7280;margin:0 0 10px;">密钥只保存在<strong>本机浏览器</strong>里，不会出现在仓库或网页源码中。可在 cloud.siliconflow.cn 后台获取。<br /></p>
+        <p style="font-size:13px;color:#6b7280;margin:0 0 10px;">密钥只保存在<strong>本机浏览器</strong>里，不会出现在仓库或网页源码中。可在 cloud.siliconflow.cn 后台获取。<br />同一个密钥可以私下发给同学，让同学也在自己手机上粘一次。</p>
         <input type="text" id="keyInput" placeholder="粘贴 sk- 开头的密钥" style="width:100%;padding:11px;font-size:15px;border:1.5px solid #e5e7eb;border-radius:10px;outline:none;" />
         <div id="keyErr" style="color:#dc2626;font-size:13px;margin-top:8px;min-height:16px;"></div>
         <button class="primary" id="keySave" style="margin-top:10px;">保存密钥</button>
+        <button type="button" class="mini-btn" id="keyClear" style="margin-top:10px;width:100%;">🗑 清除本机已保存的密钥</button>
       </div>
     </div>
 
@@ -318,7 +319,7 @@
     // ---------- 读取配置 ----------
     var cfg = (window.APP_CONFIG || {});
     var LS_KEY = "chutiqi_api_key";
-    var API_KEY = (cfg.apiKey || "") || readStoredKey();
+    var API_KEY = readStoredKey() || (cfg.apiKey || "");
     var BASE_URL = cfg.baseUrl || "https://api.siliconflow.cn/v1/chat/completions";
     // 有 proxyUrl 就走服务端代理（部署版：密钥在服务端，且无跨域问题）；
     // 否则本地用 apiKey 直连硅基流动；两者都没有则回退到同源 /api/chat。
@@ -1016,8 +1017,17 @@
       closeKeyModal();
       setStatus("密钥已保存到本机浏览器 ✓（仅本设备有效）", false);
     }
+    function clearKey() {
+      try { localStorage.removeItem(LS_KEY); } catch (e) {}
+      try { document.cookie = LS_KEY + "=; max-age=0; path=/; SameSite=Lax"; } catch (e) {}
+      API_KEY = "";
+      $("keyInput").value = "";
+      $("keyErr").textContent = "已清除本机保存的密钥。";
+      setStatus("已清除本机保存的密钥，请粘贴新密钥后点「保存密钥」。", false);
+    }
     $("keyBtn").addEventListener("click", function () { openKeyModal(); });
     $("keySave").addEventListener("click", saveKey);
+    $("keyClear").addEventListener("click", clearKey);
     $("keyCancel").addEventListener("click", closeKeyModal);
     $("keyModal").addEventListener("click", function (e) { if (e.target === $("keyModal")) { closeKeyModal(); } });
     $("keyInput").addEventListener("keydown", function (e) { if (e.key === "Enter") { saveKey(); } });
