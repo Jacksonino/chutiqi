@@ -167,9 +167,110 @@
     }
 
     footer { text-align: center; font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+    /* ===================== 七夕彩蛋 ===================== */
+    #qixiOverlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999;
+      display: none; overflow: hidden; pointer-events: all;
+      background: linear-gradient(180deg, #0a0420 0%, #1a0a3e 30%, #2d1456 60%, #4a1a6e 100%);
+    }
+    #qixiOverlay.show { display: block; }
+    #qixiOverlay.fade-out { opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+    #qixiCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+
+    /* 牛郎织女 Q 版形象 */
+    .qixi-char {
+      position: absolute; bottom: 12%; width: 32%; max-width: 220px; z-index: 2;
+      opacity: 0; transition: opacity 1.5s ease, transform 1.5s cubic-bezier(.34,1.56,.64,1);
+    }
+    .qixi-char.left { left: 4%; transform: translateX(-60px); }
+    .qixi-char.right { right: 4%; transform: translateX(60px); }
+    .qixi-char.show { opacity: 1; transform: translateX(0); }
+    .qixi-char img { width: 100%; height: auto; display: block; filter: drop-shadow(0 0 25px rgba(255,160,210,.6)); }
+
+    /* 鹊桥 */
+    #qixiBridge {
+      position: absolute; bottom: 22%; left: 50%; transform: translateX(-50%);
+      width: 64%; max-width: 480px; height: 70px; z-index: 1; opacity: 0;
+      transition: opacity 1.5s ease;
+    }
+    #qixiBridge.show { opacity: 1; }
+    #qixiBridge::before {
+      content: ''; position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 40'%3E%3Cpath d='M5 35 Q55 5 100 30 Q145 55 195 25' fill='none' stroke='rgba(255,220,240,.7)' stroke-width='3'/%3E%3Cpath d='M0 28 Q50 0 95 25 Q140 48 200 20' fill='none' stroke='rgba(255,200,230,.4)' stroke-width='2'/%3E%3C/svg%3E") repeat-x;
+      background-size: 200px 40px;
+    }
+    #qixiBridge::after {
+      content: ''; position: absolute; inset: -20px; border-radius: 50% 50% 0 0;
+      background: radial-gradient(ellipse at center bottom, rgba(255,180,220,.2), transparent 70%);
+    }
+
+    /* 表白文字 */
+    #qixiText {
+      position: absolute; top: 28%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.4); z-index: 3;
+      font-size: clamp(26px, 7vw, 52px); font-weight: 900; letter-spacing: 4px;
+      white-space: nowrap; pointer-events: none; text-align: center; opacity: 0;
+      transition: opacity 1.5s ease, transform 1.5s cubic-bezier(.34,1.56,.64,1);
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #ff9a9e, #fad0c4, #ffd1ff, #fbc2eb);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      filter: drop-shadow(0 0 20px rgba(255,150,200,.8)) drop-shadow(0 0 40px rgba(255,100,160,.4));
+      animation: qixi-glow 2s ease-in-out infinite alternate;
+    }
+    #qixiText.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    @keyframes qixi-glow {
+      from { filter: drop-shadow(0 0 20px rgba(255,150,200,.8)) drop-shadow(0 0 40px rgba(255,100,160,.4)); }
+      to   { filter: drop-shadow(0 0 35px rgba(255,180,220,1)) drop-shadow(0 0 70px rgba(255,120,180,.7)); }
+    }
+
+    /* 关闭按钮 */
+    #qixiClose {
+      position: absolute; top: 16px; right: 16px; z-index: 10;
+      background: rgba(255,255,255,.15); color: rgba(255,255,255,.7);
+      border: 1px solid rgba(255,255,255,.3); border-radius: 20px;
+      padding: 6px 18px; font-size: 13px; cursor: pointer;
+      backdrop-filter: blur(4px); transition: all .3s; opacity: 0; pointer-events: none;
+    }
+    #qixiClose.show { opacity: 1; pointer-events: auto; }
+    #qixiClose:hover { background: rgba(255,255,255,.28); color: #fff; }
+    #qixiClose:active { transform: scale(0.92); }
+
+    /* 手机适配 */
+    @media (max-width: 480px) {
+      .qixi-char { width: 38%; }
+      .qixi-char.left { left: 1%; }
+      .qixi-char.right { right: 1%; }
+    }
+
+    /* 玫瑰雨 */
+    #roseRainLayer {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 8000;
+      pointer-events: none; display: none;
+    }
+    .rose-petal {
+      position: absolute; top: -40px; font-size: 24px; user-select: none;
+      animation: rose-fall linear forwards;
+    }
+    @keyframes rose-fall {
+      0%   { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg) scale(.3); opacity: 0; }
+    }
   </style>
 </head>
 <body>
+  <!-- 🌸 七夕彩蛋覆盖层 -->
+  <div id="qixiOverlay">
+    <canvas id="qixiCanvas"></canvas>
+    <div id="qixiBridge"></div>
+    <div class="qixi-char left" id="qixiNiu"><img src="niulang.png" alt="牛郎" /></div>
+    <div class="qixi-char right" id="qixiZhi"><img src="zhinu.png" alt="织女" /></div>
+    <div id="qixiText"></div>
+    <button id="qixiClose">跳过 ✕</button>
+  </div>
+  <!-- 🌹 玫瑰雨层 -->
+  <div id="roseRainLayer"></div>
+
   <header>
     <div class="head-row">
       <div>
@@ -616,6 +717,7 @@
       var slow = isReasoningModel(currentModel);
       startLoadingTips(slow);
       $("generate").disabled = true;
+      if (cfg.qixi) { qixiRoseRain(); }
       var timer = null;
 
       try {
@@ -1196,6 +1298,211 @@
       $("photoStatus").textContent = "";
     });
 
+    // ==================== 🌸 七夕彩蛋动画 ====================
+    var qixiOverlay = $("qixiOverlay");
+    var qixiCanvas = $("qixiCanvas");
+    var qxiCtx = qixiCanvas ? qixiCanvas.getContext("2d") : null;
+    var qixiAnimId = null;
+    var qixiStars = [];
+    var qixiPetalParts = [];
+
+    function qixiResizeCanvas() {
+      if (!qixiCanvas) return;
+      qixiCanvas.width = window.innerWidth;
+      qixiCanvas.height = window.innerHeight;
+    }
+
+    function qixiInitStars() {
+      qixiStars = [];
+      var n = Math.floor((qixiCanvas.width * qixiCanvas.height) / 6000);
+      for (var i = 0; i < n; i++) {
+        qixiStars.push({
+          x: Math.random() * qixiCanvas.width,
+          y: Math.random() * qixiCanvas.height * 0.6,
+          r: Math.random() * 1.5 + 0.3,
+          a: Math.random(),
+          tw: Math.random() * 0.03 + 0.005
+        });
+      }
+    }
+
+    function qixiLaunchBloom(x, y) {
+      var colors = ["#ff6b9d", "#ff9ec7", "#ffc4dc", "#ff4f8a", "#f8a5c2", "#e84393", "#ffb7d5", "#ffe0ef"];
+      var count = 50 + Math.floor(Math.random() * 30);
+      for (var i = 0; i < count; i++) {
+        var angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+        var speed = 3 + Math.random() * 6;
+        qixiPetalParts.push({
+          x: x, y: y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1,
+          size: 6 + Math.random() * 10,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rot: Math.random() * Math.PI * 2,
+          vr: (Math.random() - 0.5) * 0.15,
+          life: 1.0,
+          decay: 0.003 + Math.random() * 0.004,
+          type: Math.random() > 0.4 ? "petal" : "dot"
+        });
+      }
+    }
+
+    function qixiDrawPetal(ctx, p) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      if (p.type === "petal") {
+        ctx.beginPath();
+        ctx.moveTo(0, -p.size);
+        ctx.bezierCurveTo(p.size * 0.7, -p.size * 0.8, p.size * 0.5, p.size * 0.8, 0, p.size);
+        ctx.bezierCurveTo(-p.size * 0.5, p.size * 0.8, -p.size * 0.7, -p.size * 0.8, 0, -p.size);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function qixiAnimate() {
+      if (!qxiCtx) return;
+      var w = qixiCanvas.width, h = qixiCanvas.height;
+      var grad = qxiCtx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, "#0a0420");
+      grad.addColorStop(0.3, "#1a0a3e");
+      grad.addColorStop(0.6, "#2d1456");
+      grad.addColorStop(1, "#4a1a6e");
+      qxiCtx.fillStyle = grad;
+      qxiCtx.fillRect(0, 0, w, h);
+
+      // 银河带
+      qxiCtx.globalAlpha = 0.08;
+      var mw = qxiCtx.createLinearGradient(0, h * 0.2, w, h * 0.5);
+      mw.addColorStop(0, "transparent");
+      mw.addColorStop(0.3, "#a78bfa");
+      mw.addColorStop(0.5, "#c4b5fd");
+      mw.addColorStop(0.7, "#a78bfa");
+      mw.addColorStop(1, "transparent");
+      qxiCtx.fillStyle = mw;
+      qxiCtx.fillRect(0, h * 0.15, w, h * 0.4);
+      qxiCtx.globalAlpha = 1;
+
+      // 星星闪烁
+      for (var i = 0; i < qixiStars.length; i++) {
+        var s = qixiStars[i];
+        s.a += s.tw;
+        if (s.a > 1 || s.a < 0) s.tw = -s.tw;
+        qxiCtx.globalAlpha = Math.max(0, Math.min(1, s.a));
+        qxiCtx.fillStyle = "#fff";
+        qxiCtx.beginPath();
+        qxiCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        qxiCtx.fill();
+      }
+      qxiCtx.globalAlpha = 1;
+
+      // 花瓣粒子
+      for (var j = qixiPetalParts.length - 1; j >= 0; j--) {
+        var p = qixiPetalParts[j];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.06;
+        p.vx *= 0.99;
+        p.rot += p.vr;
+        p.life -= p.decay;
+        if (p.life <= 0 || p.y > h + 30) {
+          qixiPetalParts.splice(j, 1);
+        } else {
+          qixiDrawPetal(qxiCtx, p);
+        }
+      }
+
+      qixiAnimId = requestAnimationFrame(qixiAnimate);
+    }
+
+    function qixiCloseOverlay() {
+      if (!qixiOverlay || !qixiOverlay.classList.contains("show")) return;
+      qixiOverlay.classList.add("fade-out");
+      setTimeout(function () {
+        qixiOverlay.classList.remove("show", "fade-out");
+        var c = $("qixiClose"); if (c) c.classList.remove("show");
+        var b = $("qixiBridge"); if (b) b.classList.remove("show");
+        var n = $("qixiNiu"), z = $("qixiZhi");
+        if (n) n.classList.remove("show");
+        if (z) z.classList.remove("show");
+        var t = $("qixiText"); if (t) t.classList.remove("show");
+        if (qixiAnimId) { cancelAnimationFrame(qixiAnimId); qixiAnimId = null; }
+      }, 1200);
+    }
+
+    function qixiStart() {
+      if (!cfg.qixi || !qixiOverlay) return;
+      qixiOverlay.classList.add("show");
+      qixiOverlay.classList.remove("fade-out");
+      qixiResizeCanvas();
+      qixiInitStars();
+      qixiPetalParts = [];
+      qixiAnimate();
+
+      var txtEl = $("qixiText");
+      if (txtEl) { txtEl.textContent = cfg.qixiText || "喜欢小许同学"; }
+
+      // 时间线：0.3s 花瓣绽放 → 1.2s 鹊桥 → 1.5s 第二波绽放 → 2s 牛郎织女 → 3s 文字 → 4s 第三波绽放 → 4.5s 关闭按钮 → 8.5s 自动关闭
+      setTimeout(function () { qixiLaunchBloom(qixiCanvas.width * 0.5, qixiCanvas.height * 0.45); }, 300);
+      setTimeout(function () { var b = $("qixiBridge"); if (b) b.classList.add("show"); }, 1200);
+      setTimeout(function () {
+        qixiLaunchBloom(qixiCanvas.width * 0.3, qixiCanvas.height * 0.35);
+        qixiLaunchBloom(qixiCanvas.width * 0.7, qixiCanvas.height * 0.35);
+      }, 1500);
+      setTimeout(function () {
+        var n = $("qixiNiu"), z = $("qixiZhi");
+        if (n) n.classList.add("show");
+        if (z) z.classList.add("show");
+      }, 2000);
+      setTimeout(function () { if (txtEl) txtEl.classList.add("show"); }, 3000);
+      setTimeout(function () { qixiLaunchBloom(qixiCanvas.width * 0.5, qixiCanvas.height * 0.3); }, 4000);
+      setTimeout(function () { var c = $("qixiClose"); if (c) c.classList.add("show"); }, 4500);
+      setTimeout(function () { qixiCloseOverlay(); }, 8500);
+    }
+
+    if ($("qixiClose")) {
+      $("qixiClose").addEventListener("click", qixiCloseOverlay);
+    }
+    window.addEventListener("resize", function () {
+      if (qixiOverlay && qixiOverlay.classList.contains("show")) { qixiResizeCanvas(); qixiInitStars(); }
+    });
+
+    // 🌹 玫瑰雨（点「开始出题」触发）
+    function qixiRoseRain() {
+      if (!cfg.qixi) return;
+      var layer = $("roseRainLayer");
+      if (!layer) return;
+      layer.style.display = "block";
+      var emojis = ["🌹", "🌸", "🌺", "💐", "🌷", "❤️"];
+      var count = 0;
+      var maxCount = 60;
+      var interval = setInterval(function () {
+        if (count >= maxCount) {
+          clearInterval(interval);
+          setTimeout(function () { layer.style.display = "none"; layer.innerHTML = ""; }, 3000);
+          return;
+        }
+        var el = document.createElement("div");
+        el.className = "rose-petal";
+        el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+        el.style.left = Math.random() * 100 + "vw";
+        el.style.fontSize = (18 + Math.random() * 20) + "px";
+        el.style.animationDuration = (2.5 + Math.random() * 2.5) + "s";
+        el.style.animationDelay = Math.random() * 0.3 + "s";
+        layer.appendChild(el);
+        count++;
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 6000);
+      }, 80);
+    }
+    // ==================== 七夕彩蛋 END ====================
+
     // 初始化
     switchMode("exam");
     // 从加密配置中自动解密密钥
@@ -1204,6 +1511,8 @@
         if (k) { API_KEY = k; }
       });
     } catch (e) {}
+    // 启动七夕彩蛋
+    if (cfg.qixi) { setTimeout(qixiStart, 200); }
   })();
   </script>
   <script>
