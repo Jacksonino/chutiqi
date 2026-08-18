@@ -13,10 +13,10 @@ window.APP_CONFIG = {
 
   // 加密后的密钥（由「加密工具.html」生成，四段都要复制；口令后半段硬编码在 index.html 里，单看本文件解不出）
   keyEnc: {
-    salt:  "",   // 工具生成的盐（base64）
-    iv:    "",   // 工具生成的随机向量（base64）
-    data:  "",   // 工具生成的密文（base64）
-    passA: ""    // 工具生成的解密口令前半段
+    salt:  "lFeC7wZdjxColeMTcYa7lQ==",   // 工具生成的盐（base64）
+    iv:    "hlrrhNpQ+Q/46KGk",   // 工具生成的随机向量（base64）
+    data:  "q9LYoB5CX7aAMydu3gVvXqqvzeX3DCrbp3NnxrsNURvqut2D1u7kt0PXu+WM1SdMj7vvMFD0tRDWVrG3rkw/vdYwjg==",   // 工具生成的密文（base64）
+    passA: "69992788779f45b41f1e52d06312ef37cee412179c8539a26c24e60aef2b2536"    // 工具生成的解密口令前半段
   },
 
   // 接口地址（硅基流动，OpenAI 兼容格式，一般不用改）
@@ -48,7 +48,7 @@ window.APP_CONFIG = {
   //   true  = 打开页面自动播放七夕动画（花瓣粒子绽放 → 牛郎织女鹊桥相会 → 浮现表白文字）
   //           每次点「开始出题」还会下一阵玫瑰雨
   //   false = 完全无特效，跟普通出题器一样
-  qixi: true,
+  qixi: false,
 
   // 七夕表白文字（可改成你想说的话）
   qixiText: "喜欢小许同学"
