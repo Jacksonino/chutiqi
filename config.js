@@ -13,10 +13,10 @@ window.APP_CONFIG = {
 
   // 加密后的密钥（由「加密工具.html」生成，四段都要复制；口令后半段硬编码在 index.html 里，单看本文件解不出）
   keyEnc: {
-    salt:  "PSlWVOBEZ8wHApR7ArnWaQ==",   // 工具生成的盐（base64）
-    iv:    "1h5+GOQHzs2Kc1pA",   // 工具生成的随机向量（base64）
-    data:  "Q6Wj+f5swS0DVl8AX/GbasTBQFKF4BDp4Fk9esRzFFhwXrEkvzrAM8gg+5CHxagsWW0TOcJCMBVlc/KSdATGaOjW9Q==",   // 工具生成的密文（base64）
-    passA: "fd22916aef2dfb42f3c40e17e6dc56e8bb4da9339754e168fc793221ea9432a1"    // 工具生成的解密口令前半段
+    salt:  "B39SJVp5505SUAD/z3CDZg==",   // 工具生成的盐（base64）
+    iv:    "b/LNXm+MHfHir0MJ",   // 工具生成的随机向量（base64）
+    data:  "eMUTt0ix8+AbDkmRS92D5v7KwfiQefH+DFklRYA9IuWjWlga6iBo9wkw0Qdfmn+xP39qHIWcAvaN/9q070W6FJqFrA==",   // 工具生成的密文（base64）
+    passA: "a4cc6b0465cc456118b6d4a0fc89d47a62ca445c681545d984edb184e2f9f9aa"    // 工具生成的解密口令前半段
   },
 
   // 接口地址（硅基流动，OpenAI 兼容格式，一般不用改）
