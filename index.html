@@ -283,7 +283,7 @@
           <span>🔑 输入 API 密钥</span>
           <button class="mini-btn" id="keyCancel">取消</button>
         </div>
-        <p style="font-size:13px;color:#6b7280;margin:0 0 10px;">密钥只保存在<strong>本机浏览器</strong>里，不会出现在仓库或网页源码中。可在 cloud.siliconflow.cn 后台获取。<br /></p>
+        <p style="font-size:13px;color:#6b7280;margin:0 0 10px;">密钥只保存在<strong>本机浏览器</strong>里，不会出现在仓库或网页源码中。可在 cloud.siliconflow.cn 后台获取。<br />同一个密钥可以私下发给同学，让同学也在自己手机上粘一次。</p>
         <input type="text" id="keyInput" placeholder="粘贴 sk- 开头的密钥" style="width:100%;padding:11px;font-size:15px;border:1.5px solid #e5e7eb;border-radius:10px;outline:none;" />
         <div id="keyErr" style="color:#dc2626;font-size:13px;margin-top:8px;min-height:16px;"></div>
         <button class="primary" id="keySave" style="margin-top:10px;">保存密钥</button>
@@ -349,6 +349,39 @@
         if (m) return decodeURIComponent(m[1]);
       } catch (e) {}
       return "";
+    }
+
+    // ---------- 加密密钥自动解密（AES-256-GCM + PBKDF2，密文由「加密工具.html」生成） ----------
+    // 口令拆两半：passA 在 config.js 的 keyEnc 里，passB 硬编码在这里，单看任一个文件都解不出。
+    var KEY_PASS_B = "7e3b9d1f4a6c8e2b5d0f3a7c9e1b4f6d";
+
+    function _b64ToBytes(b64) {
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
+      return bytes;
+    }
+
+    async function decryptStoredKey(cfg) {
+      var e = (cfg && cfg.keyEnc) || {};
+      if (!e.salt || !e.iv || !e.data || !e.passA) { return ""; }
+      if (!(window.crypto && window.crypto.subtle)) { return ""; }
+      try {
+        var passphrase = (e.passA || "") + KEY_PASS_B;
+        var te = new TextEncoder();
+        var keyMaterial = await crypto.subtle.importKey("raw", te.encode(passphrase), "PBKDF2", false, ["deriveKey"]);
+        var aesKey = await crypto.subtle.deriveKey(
+          { name: "PBKDF2", salt: _b64ToBytes(e.salt), iterations: 100000, hash: "SHA-256" },
+          keyMaterial,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["decrypt"]
+        );
+        var pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: _b64ToBytes(e.iv) }, aesKey, _b64ToBytes(e.data));
+        return new TextDecoder().decode(pt);
+      } catch (err) {
+        return "";
+      }
     }
 
     // ---------- 加载动画：小猫抓老鼠 ----------
@@ -1226,7 +1259,16 @@
 
     // 初始化
     switchMode("exam");
-    if (!API_KEY && !cfg.proxyUrl) { openKeyModal("首次使用请粘贴你的硅基流动密钥（只保存在本机浏览器）。"); }
+    // 若配置了加密密钥，启动时自动解密（很快，用户点击前完成）；解不出则回退为弹密钥框
+    var _finishInit = function () {
+      if (!API_KEY && !cfg.proxyUrl) { openKeyModal("首次使用请粘贴你的硅基流动密钥（只保存在本机浏览器）。"); }
+    };
+    try {
+      decryptStoredKey(cfg).then(function (k) {
+        if (k) { API_KEY = k; }
+        _finishInit();
+      });
+    } catch (e) { _finishInit(); }
   })();
   </script>
   <script>
