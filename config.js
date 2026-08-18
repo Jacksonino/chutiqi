@@ -1,23 +1,22 @@
 // ============================================================
 //  出题器配置文件 —— 你只需要改这个文件
-//  说明：API 密钥【不再写在本文件里】，避免泄露到公开仓库。
-//        改成首次使用时在网页里点「🔑 密钥」粘贴一次。
+//  说明：密钥已用 AES-256-GCM 加密后存入 keyEnc（用「加密工具.html」生成）。
+//        网页打开时自动解密，无需手动输入密钥。
 // ============================================================
 
 window.APP_CONFIG = {
-  // ★ 密钥（推荐加密方案）：
+  // ★ 密钥（加密方案，推荐此方式）：
   //   用「加密工具.html」在本地生成密文，把下面 keyEnc 四项复制进来。
   //   运行时网页会自动解密使用：别人打开就能直接出题，无需输入，源码里也看不到明文密钥。
   //   注意：「加密工具.html」请留在自己电脑上，不要上传 GitHub、也不要发给别人。
-  //   若不用加密，保持 apiKey 和 keyEnc 都为空即可（首次打开时手动粘一次）。
   apiKey: "",
 
   // 加密后的密钥（由「加密工具.html」生成，四段都要复制；口令后半段硬编码在 index.html 里，单看本文件解不出）
   keyEnc: {
-    salt:  "u/ETHysDx4d/4ORQfWqTtA==",   // 工具生成的盐（base64）
-    iv:    "IddaaoWXSKVOHKC+",   // 工具生成的随机向量（base64）
-    data:  "obrdbZW5k2cYu2CAmVjas2W2iKCo1KY7iphixe/vGZWN74g8xD09IaKFVMNI4Bps2dwVpcg5EiXn3PVnw04x21J/2A==",   // 工具生成的密文（base64）
-    passA: "5b04e0d9a159cc241760777e01b327dc9ec7f893f74218103c8060211a970aea"    // 工具生成的解密口令前半段
+    salt:  "PSlWVOBEZ8wHApR7ArnWaQ==",   // 工具生成的盐（base64）
+    iv:    "1h5+GOQHzs2Kc1pA",   // 工具生成的随机向量（base64）
+    data:  "Q6Wj+f5swS0DVl8AX/GbasTBQFKF4BDp4Fk9esRzFFhwXrEkvzrAM8gg+5CHxagsWW0TOcJCMBVlc/KSdATGaOjW9Q==",   // 工具生成的密文（base64）
+    passA: "fd22916aef2dfb42f3c40e17e6dc56e8bb4da9339754e168fc793221ea9432a1"    // 工具生成的解密口令前半段
   },
 
   // 接口地址（硅基流动，OpenAI 兼容格式，一般不用改）
