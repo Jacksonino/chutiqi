@@ -49,7 +49,7 @@
     header h1 { margin: 0; font-size: 20px; font-weight: 700; }
     header p { margin: 4px 0 0; font-size: 13px; opacity: .9; }
     .head-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .key-btn { flex-shrink: 0; background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.45); border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+    
 
     main { max-width: 640px; margin: 0 auto; padding: 14px; }
 
@@ -176,8 +176,7 @@
         <h1>小许同学专用</h1>
         <p>出卷 · 仿例题 · 按知识点，都能出题</p>
       </div>
-      <button class="key-btn" id="keyBtn">🔑 密钥</button>
-    </div>
+      </div>
   </header>
 
   <main>
@@ -276,21 +275,6 @@
       </div>
     </div>
 
-    <!-- 密钥输入弹层（存在本机浏览器，不上传仓库） -->
-    <div class="modal" id="keyModal">
-      <div class="modal-box">
-        <div class="modal-head">
-          <span>🔑 输入 API 密钥</span>
-          <button class="mini-btn" id="keyCancel">取消</button>
-        </div>
-        <p style="font-size:13px;color:#6b7280;margin:0 0 10px;">密钥只保存在<strong>本机浏览器</strong>里，不会出现在仓库或网页源码中。可在 cloud.siliconflow.cn 后台获取。<br />同一个密钥可以私下发给同学，让同学也在自己手机上粘一次。</p>
-        <input type="text" id="keyInput" placeholder="粘贴 sk- 开头的密钥" style="width:100%;padding:11px;font-size:15px;border:1.5px solid #e5e7eb;border-radius:10px;outline:none;" />
-        <div id="keyErr" style="color:#dc2626;font-size:13px;margin-top:8px;min-height:16px;"></div>
-        <button class="primary" id="keySave" style="margin-top:10px;">保存密钥</button>
-        <button type="button" class="mini-btn" id="keyClear" style="margin-top:10px;width:100%;">🗑 清除本机已保存的密钥</button>
-      </div>
-    </div>
-
     <!-- PDF 命名弹层 -->
     <div class="modal" id="nameModal">
       <div class="modal-box">
@@ -318,8 +302,7 @@
   (function () {
     // ---------- 读取配置 ----------
     var cfg = (window.APP_CONFIG || {});
-    var LS_KEY = "chutiqi_api_key";
-    var API_KEY = readStoredKey() || (cfg.apiKey || "");
+    var API_KEY = cfg.apiKey || "";
     var BASE_URL = cfg.baseUrl || "https://api.siliconflow.cn/v1/chat/completions";
     // 有 proxyUrl 就走服务端代理（部署版：密钥在服务端，且无跨域问题）；
     // 否则本地用 apiKey 直连硅基流动；两者都没有则回退到同源 /api/chat。
@@ -337,19 +320,6 @@
     }
 
     function $(id) { return document.getElementById(id); }
-
-    function storeStoredKey(v) {
-      try { localStorage.setItem(LS_KEY, v); } catch (e) {}
-      try { document.cookie = LS_KEY + "=" + encodeURIComponent(v) + "; max-age=31536000; path=/; SameSite=Lax"; } catch (e) {}
-    }
-    function readStoredKey() {
-      try { var ls = localStorage.getItem(LS_KEY); if (ls) return ls; } catch (e) {}
-      try {
-        var m = document.cookie.match(new RegExp("(?:^|;\\s*)" + LS_KEY + "=([^;]*)"));
-        if (m) return decodeURIComponent(m[1]);
-      } catch (e) {}
-      return "";
-    }
 
     // ---------- 加密密钥自动解密（AES-256-GCM + PBKDF2，密文由「加密工具.html」生成） ----------
     // 口令拆两半：passA 在 config.js 的 keyEnc 里，passB 硬编码在这里，单看任一个文件都解不出。
@@ -638,7 +608,6 @@
         }
         return;
       }
-      if (!API_KEY && !cfg.proxyUrl) { openKeyModal("请先输入 API 密钥再出题。"); return; }
 
       var slow = isReasoningModel(currentModel);
       startLoadingTips(slow);
@@ -1031,40 +1000,6 @@
     $("closeModal").addEventListener("click", function () { $("imgModal").classList.remove("show"); });
     $("imgModal").addEventListener("click", function (e) { if (e.target === $("imgModal")) { $("imgModal").classList.remove("show"); } });
 
-    // ---------- 密钥管理（存本机浏览器，不上传仓库） ----------
-    function openKeyModal(msg) {
-      $("keyInput").value = API_KEY || "";
-      $("keyErr").textContent = msg || "";
-      $("keyModal").classList.add("show");
-      setTimeout(function () { $("keyInput").focus(); }, 50);
-    }
-    function closeKeyModal() {
-      $("keyModal").classList.remove("show");
-      $("keyErr").textContent = "";
-    }
-    function saveKey() {
-      var v = ($("keyInput").value || "").trim();
-      if (!v) { $("keyErr").textContent = "密钥不能为空。"; return; }
-      API_KEY = v;
-      storeStoredKey(v);
-      closeKeyModal();
-      setStatus("密钥已保存到本机浏览器 ✓（仅本设备有效）", false);
-    }
-    function clearKey() {
-      try { localStorage.removeItem(LS_KEY); } catch (e) {}
-      try { document.cookie = LS_KEY + "=; max-age=0; path=/; SameSite=Lax"; } catch (e) {}
-      API_KEY = "";
-      $("keyInput").value = "";
-      $("keyErr").textContent = "已清除本机保存的密钥。";
-      setStatus("已清除本机保存的密钥，请粘贴新密钥后点「保存密钥」。", false);
-    }
-    $("keyBtn").addEventListener("click", function () { openKeyModal(); });
-    $("keySave").addEventListener("click", saveKey);
-    $("keyClear").addEventListener("click", clearKey);
-    $("keyCancel").addEventListener("click", closeKeyModal);
-    $("keyModal").addEventListener("click", function (e) { if (e.target === $("keyModal")) { closeKeyModal(); } });
-    $("keyInput").addEventListener("keydown", function (e) { if (e.key === "Enter") { saveKey(); } });
-
     // 快/慢模型切换
     var segBtns = document.querySelectorAll("#modelSeg .seg-btn");
     for (var i = 0; i < segBtns.length; i++) {
@@ -1259,16 +1194,12 @@
 
     // 初始化
     switchMode("exam");
-    // 若配置了加密密钥，启动时自动解密（很快，用户点击前完成）；解不出则回退为弹密钥框
-    var _finishInit = function () {
-      if (!API_KEY && !cfg.proxyUrl) { openKeyModal("首次使用请粘贴你的硅基流动密钥（只保存在本机浏览器）。"); }
-    };
+    // 从加密配置中自动解密密钥
     try {
       decryptStoredKey(cfg).then(function (k) {
         if (k) { API_KEY = k; }
-        _finishInit();
       });
-    } catch (e) { _finishInit(); }
+    } catch (e) {}
   })();
   </script>
   <script>
