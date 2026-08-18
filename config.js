@@ -5,11 +5,20 @@
 // ============================================================
 
 window.APP_CONFIG = {
-  // ★ 密钥这里保持为空 "" 即可（不要填！）。
-  //   首次打开网页时，点右上角「🔑 密钥」粘贴你的硅基流动密钥，
-  //   它会只保存在你自己的手机/电脑浏览器里，不会上传 GitHub、不会出现在网页源码里。
-  //   同一个密钥也可以私下发给同学，让同学在自己手机上各粘一次。
+  // ★ 密钥（推荐加密方案）：
+  //   用「加密工具.html」在本地生成密文，把下面 keyEnc 四项复制进来。
+  //   运行时网页会自动解密使用：别人打开就能直接出题，无需输入，源码里也看不到明文密钥。
+  //   注意：「加密工具.html」请留在自己电脑上，不要上传 GitHub、也不要发给别人。
+  //   若不用加密，保持 apiKey 和 keyEnc 都为空即可（首次打开时手动粘一次）。
   apiKey: "",
+
+  // 加密后的密钥（由「加密工具.html」生成，四段都要复制；口令后半段硬编码在 index.html 里，单看本文件解不出）
+  keyEnc: {
+    salt:  "u/ETHysDx4d/4ORQfWqTtA==",   // 工具生成的盐（base64）
+    iv:    "IddaaoWXSKVOHKC+",   // 工具生成的随机向量（base64）
+    data:  "obrdbZW5k2cYu2CAmVjas2W2iKCo1KY7iphixe/vGZWN74g8xD09IaKFVMNI4Bps2dwVpcg5EiXn3PVnw04x21J/2A==",   // 工具生成的密文（base64）
+    passA: "5b04e0d9a159cc241760777e01b327dc9ec7f893f74218103c8060211a970aea"    // 工具生成的解密口令前半段
+  },
 
   // 接口地址（硅基流动，OpenAI 兼容格式，一般不用改）
   baseUrl: "https://api.siliconflow.cn/v1/chat/completions",
